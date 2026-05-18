@@ -67,6 +67,8 @@
     .notice{background:#fff8df;color:#76622c}
     .status{background:#eef5ef;color:var(--ok);display:none}
     .status.error{background:#f3ddd7;color:var(--danger)}
+    .ai-result{margin-top:10px;background:#fff;border:1px solid var(--line);border-radius:18px;padding:13px;font-size:13px;line-height:1.6}
+    .ai-result ul{margin:8px 0 0;padding-left:20px}
     .empty{color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:18px;background:rgba(255,255,255,.55);text-align:center;font-size:14px}
     .section-gap{margin-top:18px}.hidden{display:none!important}
     @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}.date-picker{border-radius:18px;align-items:flex-start;flex-direction:column}.date-picker input{width:100%}}
@@ -139,6 +141,23 @@
           </div>
 
           <div class="card section-gap">
+            <h2>AI 估算餐點</h2>
+            <div class="notice">輸入自然語言餐點描述後按「AI 估算」。AI 只會協助填入下方新增餐點表單，送出前仍可自行修改；實際儲存仍沿用新增餐點按鈕。</div>
+            <div class="stack section-gap">
+              <div>
+                <label>餐點描述</label>
+                <textarea id="aiMealText" placeholder="例如：雞腿便當，飯吃半碗，沒有醬汁"></textarea>
+              </div>
+              <div class="actions">
+                <button type="button" id="aiEstimateBtn">AI 估算</button>
+                <span class="meta" id="aiLoading" hidden>估算中，請稍候…</span>
+              </div>
+              <div class="status" id="aiEstimateStatus"></div>
+              <div class="ai-result hidden" id="aiEstimateResult"></div>
+            </div>
+          </div>
+
+          <div class="card section-gap">
             <h2>新增餐點</h2>
             <div class="notice">新增餐點會記錄在目前查看的日期；營養欄位請填 1 份的數值，送出時會依「份量倍數」換算。蛋白質、碳水、脂肪三項填完後，熱量會自動計算。</div>
             <form id="mealForm" class="section-gap">
@@ -155,7 +174,7 @@
                 <div><label>碳水 g</label><input id="carbs" type="number" min="0" step="0.1" value="0" /></div>
                 <div><label>脂肪 g</label><input id="fat" type="number" min="0" step="0.1" value="0" /></div>
               </div>
-              <div><label>來源</label><select id="source"><option>手動輸入</option><option>模板</option></select></div>
+              <div><label>來源</label><select id="source"><option>手動輸入</option><option>模板</option><option>AI估算</option></select></div>
               <div><label>備註</label><textarea id="note" placeholder="例如：炸皮沒吃、醬料偏多、自訂份量說明"></textarea></div>
               <div class="actions"><button type="submit">新增餐點</button><button type="button" class="secondary" id="resetFormBtn">重設</button></div>
             </form>
@@ -188,6 +207,7 @@
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
     import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
     import { getDatabase, ref, onValue, set, off } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
+    import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js';
 
     // TODO: 請將以下設定替換成你的 Firebase Web App config。
     const firebaseConfig = {
@@ -203,6 +223,8 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getDatabase(app);
+    const functions = getFunctions(app);
+    const estimateMealFromText = httpsCallable(functions, 'estimateMealFromText');
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
@@ -273,6 +295,79 @@
       el.textContent = message;
       el.className = `status ${type === 'error' ? 'error' : ''}`;
       el.style.display = 'block';
+    }
+
+    function setAiStatus(message, type='ok') {
+      const el = $('aiEstimateStatus');
+      el.textContent = message;
+      el.className = `status ${type === 'error' ? 'error' : ''}`;
+      el.style.display = message ? 'block' : 'none';
+    }
+
+    function renderAiResult(result) {
+      const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+      $('aiEstimateResult').classList.remove('hidden');
+      $('aiEstimateResult').innerHTML = `
+        <div class="title">${esc(result.name)}（可信度：${esc(result.confidence)}）</div>
+        <div class="meta">${round(result.calories)} kcal｜P ${round(result.protein)}g／C ${round(result.carbs)}g／F ${round(result.fat)}g</div>
+        <div class="meta">份量：${esc(result.servingDescription)}</div>
+        <div class="meta">說明：${esc(result.reason)}</div>
+        ${warnings.length ? `<div class="meta">提醒：<ul>${warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
+      `;
+    }
+
+    function fillMealFormFromAi(result) {
+      $('mealName').value = result.name || '';
+      $('serving').value = 1;
+      $('calories').value = round(result.calories);
+      $('protein').value = round(result.protein);
+      $('carbs').value = round(result.carbs);
+      $('fat').value = round(result.fat);
+      $('source').value = 'AI估算';
+      const warnings = Array.isArray(result.warnings) && result.warnings.length
+        ? `提醒：${result.warnings.join('；')}`
+        : '';
+      $('note').value = [
+        result.servingDescription ? `AI 份量：${result.servingDescription}` : '',
+        result.reason ? `AI 說明：${result.reason}` : '',
+        result.confidence ? `可信度：${result.confidence}` : '',
+        warnings
+      ].filter(Boolean).join('\n');
+    }
+
+    async function estimateMealWithAi() {
+      const text = $('aiMealText').value.trim();
+      if (!text) {
+        setAiStatus('請先輸入餐點描述。', 'error');
+        return;
+      }
+      if (!currentUser) {
+        setAiStatus('請先登入後再使用 AI 估算。', 'error');
+        return;
+      }
+
+      $('aiEstimateBtn').disabled = true;
+      $('aiLoading').hidden = false;
+      $('aiEstimateResult').classList.add('hidden');
+      setAiStatus('', 'ok');
+
+      try {
+        const response = await estimateMealFromText({
+          text,
+          date: selectedDate || todayISO(),
+          targets: state.targets,
+          todayTotals: totals(selectedDate || todayISO())
+        });
+        const result = response.data;
+        fillMealFormFromAi(result);
+        renderAiResult(result);
+        setAiStatus('AI 估算已填入新增餐點表單；請確認或修改後再新增餐點。');
+      } catch (err) {
+        setAiStatus(`AI 估算失敗：${err.message || '請稍後再試。'}`, 'error');
+      } finally {
+        $('aiEstimateBtn').disabled = false;
+        $('aiLoading').hidden = true;
+      }
     }
 
     async function saveCloud() {
@@ -411,6 +506,7 @@
       $('carbs').value = 0;
       $('fat').value = 0;
       $('source').value = '手動輸入';
+      $('note').value = '';
     }
 
     function resetTemplateForm() {
@@ -504,6 +600,7 @@
     });
 
     $('resetFormBtn').addEventListener('click', resetMealForm);
+    $('aiEstimateBtn').addEventListener('click', estimateMealWithAi);
 
     $('templateForm').addEventListener('submit', async e => {
       e.preventDefault();
