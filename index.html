@@ -140,7 +140,7 @@
 
           <div class="card section-gap">
             <h2>新增餐點</h2>
-            <div class="notice">新增餐點會記錄在目前查看的日期，可先用上方日期選擇器切換到歷史日期。</div>
+            <div class="notice">新增餐點會記錄在目前查看的日期；營養欄位請填 1 份的數值，送出時會依「份量倍數」換算。蛋白質、碳水、脂肪三項填完後，熱量會自動以 P×4 + C×4 + F×9 計算。</div>
             <form id="mealForm" class="section-gap">
               <div><label>餐點名稱</label><input id="mealName" placeholder="例如：雞腿便當、火鍋、小酌" required /></div>
               <div class="form-row">
@@ -148,7 +148,7 @@
                 <div><label>份量倍數</label><input id="serving" type="number" step="0.1" min="0" value="1" /></div>
               </div>
               <div class="form-row">
-                <div><label>熱量 kcal</label><input id="calories" type="number" min="0" value="0" /></div>
+                <div><label>熱量 kcal（自動計算）</label><input id="calories" type="number" min="0" step="0.1" value="0" /></div>
                 <div><label>蛋白質 g</label><input id="protein" type="number" min="0" step="0.1" value="0" /></div>
               </div>
               <div class="form-row">
@@ -166,7 +166,24 @@
 
           <div class="card section-gap">
             <h2>常用餐點模板</h2>
-            <div class="template-list" id="templateList"></div>
+            <div class="notice">模板不再預設內容；請新增自己的常用餐點。模板數值也以 1 份為單位，直接新增時會依份量倍數換算。</div>
+            <form id="templateForm" class="section-gap">
+              <div><label>模板名稱</label><input id="templateName" placeholder="例如：我的早餐組合" required /></div>
+              <div class="form-row">
+                <div><label>餐別</label><select id="templateType"><option>早餐</option><option selected>午餐</option><option>晚餐</option><option>點心</option><option>酒精</option></select></div>
+                <div><label>可信度</label><select id="templateConfidence"><option>高</option><option selected>中</option><option>低</option></select></div>
+              </div>
+              <div class="form-row">
+                <div><label>熱量 kcal（自動計算）</label><input id="templateCalories" type="number" min="0" step="0.1" value="0" /></div>
+                <div><label>蛋白質 g</label><input id="templateProtein" type="number" min="0" step="0.1" value="0" /></div>
+              </div>
+              <div class="form-row">
+                <div><label>碳水 g</label><input id="templateCarbs" type="number" min="0" step="0.1" value="0" /></div>
+                <div><label>脂肪 g</label><input id="templateFat" type="number" min="0" step="0.1" value="0" /></div>
+              </div>
+              <div class="actions"><button type="submit">新增模板</button><button type="button" class="secondary" id="resetTemplateBtn">清空模板表單</button></div>
+            </form>
+            <div class="template-list section-gap" id="templateList"></div>
           </div>
         </div>
       </section>
@@ -195,19 +212,10 @@
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
-    const defaultTemplates = [
-      { id:'tpl_chicken_bento', name:'雞腿便當', calories:850, protein:38, carbs:95, fat:35, confidence:'中', type:'午餐' },
-      { id:'tpl_half_rice_bento', name:'便當飯半碗版', calories:690, protein:36, carbs:55, fat:32, confidence:'中', type:'午餐' },
-      { id:'tpl_convenience_salad', name:'便利商店雞胸沙拉', calories:320, protein:28, carbs:25, fat:12, confidence:'高', type:'午餐' },
-      { id:'tpl_hotpot_base', name:'火鍋基本盤', calories:950, protein:55, carbs:55, fat:52, confidence:'低', type:'晚餐' },
-      { id:'tpl_light_drinks', name:'小酌', calories:450, protein:2, carbs:35, fat:0, confidence:'低', type:'酒精' },
-      { id:'tpl_social_drinks', name:'一般酒局', calories:900, protein:5, carbs:65, fat:8, confidence:'低', type:'酒精' }
-    ];
-
     const defaultState = {
       targets:{ calories:2100, protein:130, carbs:220, fat:65 },
       meals:[],
-      templates:defaultTemplates,
+      templates:[],
       updatedAt:null
     };
 
@@ -227,11 +235,13 @@
     const idNow = () => {
       const d = new Date();
       const p = n => String(n).padStart(2,'0');
-      return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+      return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${String(d.getMilliseconds()).padStart(3,'0')}`;
     };
     const esc = s => String(s||'').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
     const metricLabel = k => ({calories:'熱量',protein:'蛋白質',carbs:'碳水',fat:'脂肪'}[k]);
     const unit = k => k === 'calories' ? 'kcal' : 'g';
+    const nutrientCalories = (protein, carbs, fat) => round((Number(protein) || 0) * 4 + (Number(carbs) || 0) * 4 + (Number(fat) || 0) * 9);
+    const hasAllNutrition = ids => ids.every(id => $(id).value !== '');
     const mealsForDate = date => state.meals.filter(m => m.date === date);
     const selectedMeals = () => mealsForDate(selectedDate);
     const userRef = uid => ref(db, `users/${uid}/calorieApp`);
@@ -243,7 +253,7 @@
         ...data,
         targets: { ...defaultState.targets, ...(data.targets || {}) },
         meals: Array.isArray(data.meals) ? data.meals : [],
-        templates: Array.isArray(data.templates) && data.templates.length ? data.templates : defaultTemplates
+        templates: Array.isArray(data.templates) ? data.templates : []
       };
     }
 
@@ -356,20 +366,50 @@
     }
 
     function renderTemplates() {
-      $('templateList').innerHTML = state.templates.map(t => `
+      $('templateList').innerHTML = state.templates.length ? state.templates.map(t => `
         <div class="template-card">
           <div class="template-head">
             <div>
               <div class="title">${esc(t.name)}</div>
-              <div class="meta">${t.calories} kcal｜P ${t.protein}g／C ${t.carbs}g／F ${t.fat}g｜可信度：${t.confidence}</div>
+              <div class="meta">${round(t.calories)} kcal｜P ${round(t.protein)}g／C ${round(t.carbs)}g／F ${round(t.fat)}g｜可信度：${esc(t.confidence || '中')}</div>
             </div>
-            <button class="secondary" data-fill-template="${t.id}">帶入</button>
+            <div class="actions">
+              <button class="secondary" data-fill-template="${t.id}">帶入</button>
+              <button class="ghost" data-delete-template="${t.id}">刪除</button>
+            </div>
           </div>
           <div class="qty-box">
-            <input class="small-input" type="number" min="0" step="0.1" value="1" id="qty_${t.id}" />
+            <input class="small-input" type="number" min="0" step="0.1" value="1" id="qty_${t.id}" aria-label="${esc(t.name)} 份量倍數" />
             <button data-add-template="${t.id}">直接新增</button>
           </div>
-        </div>`).join('');
+        </div>`).join('') : '<div class="empty">尚未建立模板。請用上方表單新增自己的常用餐點。</div>';
+    }
+
+    function autoCaloriesFor(prefix) {
+      const ids = prefix ? [`${prefix}Protein`, `${prefix}Carbs`, `${prefix}Fat`] : ['protein', 'carbs', 'fat'];
+      const caloriesId = prefix ? `${prefix}Calories` : 'calories';
+      if (!hasAllNutrition(ids)) return;
+      $(caloriesId).value = nutrientCalories($(ids[0]).value, $(ids[1]).value, $(ids[2]).value);
+    }
+
+    function resetMealForm() {
+      $('mealForm').reset();
+      $('serving').value = 1;
+      $('calories').value = 0;
+      $('protein').value = 0;
+      $('carbs').value = 0;
+      $('fat').value = 0;
+      $('confidence').value = '中';
+      $('source').value = '手動輸入';
+    }
+
+    function resetTemplateForm() {
+      $('templateForm').reset();
+      $('templateCalories').value = 0;
+      $('templateProtein').value = 0;
+      $('templateCarbs').value = 0;
+      $('templateFat').value = 0;
+      $('templateConfidence').value = '中';
     }
 
     function renderAll() {
@@ -393,10 +433,10 @@
       $('mealName').value = t.name;
       $('mealType').value = t.type || '午餐';
       $('serving').value = s;
-      $('calories').value = round(t.calories * s);
-      $('protein').value = round(t.protein * s);
-      $('carbs').value = round(t.carbs * s);
-      $('fat').value = round(t.fat * s);
+      $('calories').value = round(t.calories);
+      $('protein').value = round(t.protein);
+      $('carbs').value = round(t.carbs);
+      $('fat').value = round(t.fat);
       $('confidence').value = t.confidence || '中';
       $('source').value = '模板';
     }
@@ -420,6 +460,12 @@
       renderAll();
     }
 
+    async function deleteTemplate(id) {
+      state.templates = state.templates.filter(t => String(t.id) !== String(id));
+      await saveCloud();
+      renderAll();
+    }
+
     $('googleLoginBtn').addEventListener('click', async () => {
       try {
         await signInWithPopup(auth, provider);
@@ -430,30 +476,47 @@
 
     $('logoutBtn').addEventListener('click', () => signOut(auth));
 
+    ['protein', 'carbs', 'fat'].forEach(id => $(id).addEventListener('input', () => autoCaloriesFor('')));
+    ['templateProtein', 'templateCarbs', 'templateFat'].forEach(id => $(id).addEventListener('input', () => autoCaloriesFor('template')));
+
     $('mealForm').addEventListener('submit', async e => {
       e.preventDefault();
+      const serving = round($('serving').value || 1);
       const meal = {
         id:idNow(), date:selectedDate, name:$('mealName').value.trim(), type:$('mealType').value,
-        serving:round($('serving').value), calories:round($('calories').value), protein:round($('protein').value),
-        carbs:round($('carbs').value), fat:round($('fat').value), confidence:$('confidence').value,
+        serving, calories:round($('calories').value * serving), protein:round($('protein').value * serving),
+        carbs:round($('carbs').value * serving), fat:round($('fat').value * serving), confidence:$('confidence').value,
         source:$('source').value, note:$('note').value.trim()
       };
       if (!meal.name) return;
       state.meals.push(meal);
       await saveCloud();
-      e.target.reset();
-      $('serving').value = 1;
-      $('confidence').value = '中';
-      $('source').value = '手動輸入';
+      resetMealForm();
       renderAll();
     });
 
-    $('resetFormBtn').addEventListener('click', () => {
-      $('mealForm').reset();
-      $('serving').value = 1;
-      $('confidence').value = '中';
-      $('source').value = '手動輸入';
+    $('resetFormBtn').addEventListener('click', resetMealForm);
+
+    $('templateForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const template = {
+        id:`tpl_${idNow()}`,
+        name:$('templateName').value.trim(),
+        type:$('templateType').value,
+        calories:round($('templateCalories').value),
+        protein:round($('templateProtein').value),
+        carbs:round($('templateCarbs').value),
+        fat:round($('templateFat').value),
+        confidence:$('templateConfidence').value
+      };
+      if (!template.name) return;
+      state.templates.push(template);
+      await saveCloud();
+      resetTemplateForm();
+      renderAll();
     });
+
+    $('resetTemplateBtn').addEventListener('click', resetTemplateForm);
 
     $('saveTargetsBtn').addEventListener('click', async () => {
       state.targets = {
@@ -486,6 +549,7 @@
     $('templateList').addEventListener('click', e => {
       if (e.target.dataset.fillTemplate) fillFromTemplate(e.target.dataset.fillTemplate);
       if (e.target.dataset.addTemplate) addTemplateMeal(e.target.dataset.addTemplate);
+      if (e.target.dataset.deleteTemplate) deleteTemplate(e.target.dataset.deleteTemplate);
     });
 
     $('mealList').addEventListener('click', e => {
