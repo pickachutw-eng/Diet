@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>個人熱量計算 Firebase Google Login MVP</title>
+  <style>
+    :root{
+      --bg:#f6f3ef;--card:#fffaf5;--white:#fff;--text:#2b2623;--muted:#7a7068;
+      --line:#e2d8ce;--accent:#3f3a35;--soft:#eee4dc;--danger:#b85c4a;--ok:#47745a;
+      --shadow:0 18px 40px rgba(45,34,25,.08);--radius:22px
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;background:radial-gradient(circle at top left,#fff7ed 0,var(--bg) 36%,#efe9e1 100%);color:var(--text);min-height:100vh}
+    .app{max-width:1180px;margin:0 auto;padding:28px 18px 48px}
+    header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:22px}
+    h1{margin:0 0 6px;font-size:30px;letter-spacing:-.04em}
+    .subtitle{margin:0;color:var(--muted);font-size:14px;line-height:1.6}
+    .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px;align-items:start}
+    .card{background:rgba(255,250,245,.9);border:1px solid rgba(226,216,206,.9);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;backdrop-filter:blur(8px)}
+    .card h2{margin:0 0 14px;font-size:18px}
+    .auth-shell{max-width:520px;margin:56px auto}
+    .top-actions,.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .top-actions{justify-content:flex-end}
+    .chip{background:rgba(255,255,255,.8);border:1px solid var(--line);border-radius:999px;padding:10px 14px;font-size:14px;color:var(--muted)}
+    .summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .metric{background:var(--white);border:1px solid var(--line);border-radius:18px;padding:14px}
+    .metric-label{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin-bottom:9px}
+    .metric-main{font-size:24px;font-weight:760;letter-spacing:-.04em;margin-bottom:8px}
+    .metric-main small{font-size:13px;color:var(--muted);font-weight:500}
+    .bar{height:9px;background:#eee5dd;border-radius:999px;overflow:hidden}
+    .bar span{display:block;height:100%;background:var(--accent);border-radius:inherit}
+    .remaining{margin-top:14px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+    .remain-item{background:var(--soft);border-radius:16px;padding:12px;min-height:72px}
+    .remain-item .label{color:var(--muted);font-size:12px}
+    .remain-item .value{margin-top:6px;font-size:20px;font-weight:750}
+    .remain-item.negative{background:#f3ddd7;color:var(--danger)}
+    form,.stack{display:grid;gap:12px}
+    .form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input,select,textarea,button{font:inherit}
+    input,select,textarea{width:100%;border:1px solid var(--line);border-radius:14px;background:#fff;padding:11px 12px;color:var(--text);outline:none}
+    input:focus,select:focus,textarea:focus{border-color:#9f9184;box-shadow:0 0 0 3px rgba(63,58,53,.08)}
+    textarea{min-height:72px;resize:vertical}
+    button{border:0;border-radius:999px;padding:11px 15px;background:var(--accent);color:#fff;cursor:pointer;font-weight:650;transition:transform .12s ease,opacity .12s ease}
+    button:hover{transform:translateY(-1px)}
+    button.secondary{background:#fff;color:var(--accent);border:1px solid var(--line)}
+    button.ghost{background:transparent;color:var(--muted);padding-inline:8px}
+    .template-list,.meal-list{display:grid;gap:10px}
+    .template-card,.meal-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:13px}
+    .template-head,.meal-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .title{font-weight:760;margin-bottom:4px}
+    .meta{color:var(--muted);font-size:12px;line-height:1.6}
+    .pill-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+    .pill{font-size:12px;color:var(--muted);background:#f4eee8;border-radius:999px;padding:5px 8px}
+    .qty-box{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px;align-items:center}
+    .small-input{max-width:94px}
+    .notice,.status{margin-top:10px;padding:11px 12px;border-radius:15px;font-size:13px;line-height:1.55}
+    .notice{background:#fff8df;color:#76622c}
+    .status{background:#eef5ef;color:var(--ok);display:none}
+    .status.error{background:#f3ddd7;color:var(--danger)}
+    .empty{color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:18px;background:rgba(255,255,255,.55);text-align:center;font-size:14px}
+    .section-gap{margin-top:18px}.hidden{display:none!important}
+    @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section id="authView" class="auth-shell">
+      <div class="card">
+        <h1>個人熱量計算</h1>
+        <p class="subtitle">限定使用 Google 帳號登入。登入後，餐點、每日目標與模板會依照 Firebase Auth 的 UID 存進 Realtime Database。</p>
+        <div class="actions section-gap"><button id="googleLoginBtn" type="button">使用 Google 帳號登入</button></div>
+        <div id="authStatus" class="status"></div>
+        <div class="notice">使用前請到 Firebase Console 啟用 Authentication → Sign-in method → Google，並建立 Realtime Database。程式碼中的 firebaseConfig 必須換成你自己的 Web App config。</div>
+      </div>
+    </section>
+
+    <section id="appView" class="hidden">
+      <header>
+        <div>
+          <h1>個人熱量計算 Firebase MVP</h1>
+          <p class="subtitle">Google 登入、Firebase 同步、餐點紀錄、常用模板、份量微調、本日剩餘營養額度。</p>
+        </div>
+        <div class="top-actions">
+          <div class="chip" id="todayLabel"></div>
+          <div class="chip" id="userLabel"></div>
+          <button class="secondary" id="logoutBtn" type="button">登出</button>
+        </div>
+      </header>
+
+      <section class="grid">
+        <div>
+          <div class="card">
+            <h2>今日總覽</h2>
+            <div class="summary-grid" id="summaryGrid"></div>
+            <h2 class="section-gap">本日剩餘營養額度</h2>
+            <div class="remaining" id="remainingGrid"></div>
+            <div class="notice">剩餘額度以每日目標扣除今日已記錄餐點。變紅代表已超過目標。</div>
+          </div>
+          <div class="card section-gap">
+            <h2>今日餐點</h2>
+            <div class="meal-list" id="mealList"></div>
+            <div class="actions section-gap"><button class="secondary" id="clearTodayBtn" type="button">清空今日餐點</button></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <h2>每日目標</h2>
+            <div class="stack">
+              <div class="form-row">
+                <div><label>熱量 kcal</label><input type="number" id="targetCalories" /></div>
+                <div><label>蛋白質 g</label><input type="number" id="targetProtein" /></div>
+              </div>
+              <div class="form-row">
+                <div><label>碳水 g</label><input type="number" id="targetCarbs" /></div>
+                <div><label>脂肪 g</label><input type="number" id="targetFat" /></div>
+              </div>
+              <div class="actions"><button id="saveTargetsBtn" type="button">儲存目標</button></div>
+            </div>
+          </div>
+
+          <div class="card section-gap">
+            <h2>新增餐點</h2>
+            <form id="mealForm">
+              <div><label>餐點名稱</label><input id="mealName" placeholder="例如：雞腿便當、火鍋、小酌" required /></div>
+              <div class="form-row">
+                <div><label>餐別</label><select id="mealType"><option>早餐</option><option selected>午餐</option><option>晚餐</option><option>點心</option><option>酒精</option></select></div>
+                <div><label>份量倍數</label><input id="serving" type="number" step="0.1" min="0" value="1" /></div>
+              </div>
+              <div class="form-row">
+                <div><label>熱量 kcal</label><input id="calories" type="number" min="0" value="0" /></div>
+                <div><label>蛋白質 g</label><input id="protein" type="number" min="0" step="0.1" value="0" /></div>
+              </div>
+              <div class="form-row">
+                <div><label>碳水 g</label><input id="carbs" type="number" min="0" step="0.1" value="0" /></div>
+                <div><label>脂肪 g</label><input id="fat" type="number" min="0" step="0.1" value="0" /></div>
+              </div>
+              <div class="form-row">
+                <div><label>可信度</label><select id="confidence"><option>高</option><option selected>中</option><option>低</option></select></div>
+                <div><label>來源</label><select id="source"><option>手動輸入</option><option>模板</option></select></div>
+              </div>
+              <div><label>備註</label><textarea id="note" placeholder="例如：飯半碗、炸皮沒吃、醬料偏多"></textarea></div>
+              <div class="actions"><button type="submit">新增餐點</button><button type="button" class="secondary" id="resetFormBtn">重設</button></div>
+            </form>
+          </div>
+
+          <div class="card section-gap">
+            <h2>常用餐點模板</h2>
+            <div class="template-list" id="templateList"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+    import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+    import { getDatabase, ref, onValue, set, off } from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js';
+
+    // TODO: 請將以下設定替換成你的 Firebase Web App config。
+    const firebaseConfig = {
+  apiKey: "AIzaSyCH99l4uF5aBx52jYHrItC-blInYs_Si_U",
+  authDomain: "diet-56d45.firebaseapp.com",
+  databaseURL: "https://diet-56d45-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "diet-56d45",
+  storageBucket: "diet-56d45.firebasestorage.app",
+  messagingSenderId: "1073780142428",
+  appId: "1:1073780142428:web:da68562271b2d4d1111199"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    const defaultTemplates = [
+      { id:'tpl_chicken_bento', name:'雞腿便當', calories:850, protein:38, carbs:95, fat:35, confidence:'中', type:'午餐' },
+      { id:'tpl_half_rice_bento', name:'便當飯半碗版', calories:690, protein:36, carbs:55, fat:32, confidence:'中', type:'午餐' },
+      { id:'tpl_convenience_salad', name:'便利商店雞胸沙拉', calories:320, protein:28, carbs:25, fat:12, confidence:'高', type:'午餐' },
+      { id:'tpl_hotpot_base', name:'火鍋基本盤', calories:950, protein:55, carbs:55, fat:52, confidence:'低', type:'晚餐' },
+      { id:'tpl_light_drinks', name:'小酌', calories:450, protein:2, carbs:35, fat:0, confidence:'低', type:'酒精' },
+      { id:'tpl_social_drinks', name:'一般酒局', calories:900, protein:5, carbs:65, fat:8, confidence:'低', type:'酒精' }
+    ];
+
+    const defaultState = {
+      targets:{ calories:2100, protein:130, carbs:220, fat:65 },
+      meals:[],
+      templates:defaultTemplates,
+      updatedAt:null
+    };
+
+    let state = structuredClone(defaultState);
+    let currentUser = null;
+    let currentDataRef = null;
+    let isSaving = false;
+
+    const $ = id => document.getElementById(id);
+    const round = n => Math.round((Number(n)||0)*10)/10;
+    const todayISO = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    };
+    const idNow = () => {
+      const d = new Date();
+      const p = n => String(n).padStart(2,'0');
+      return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+    };
+    const esc = s => String(s||'').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+    const metricLabel = k => ({calories:'熱量',protein:'蛋白質',carbs:'碳水',fat:'脂肪'}[k]);
+    const unit = k => k === 'calories' ? 'kcal' : 'g';
+    const todayMeals = () => state.meals.filter(m => m.date === todayISO());
+    const userRef = uid => ref(db, `users/${uid}/calorieApp`);
+
+    function normalizeState(raw) {
+      const data = raw || {};
+      return {
+        ...structuredClone(defaultState),
+        ...data,
+        targets: { ...defaultState.targets, ...(data.targets || {}) },
+        meals: Array.isArray(data.meals) ? data.meals : [],
+        templates: Array.isArray(data.templates) && data.templates.length ? data.templates : defaultTemplates
+      };
+    }
+
+    function setStatus(message, type='ok') {
+      const el = $('authStatus');
+      el.textContent = message;
+      el.className = `status ${type === 'error' ? 'error' : ''}`;
+      el.style.display = 'block';
+    }
+
+    async function saveCloud() {
+      if (!currentUser || !currentDataRef) return;
+      isSaving = true;
+      await set(currentDataRef, { ...state, updatedAt: new Date().toISOString() });
+      isSaving = false;
+    }
+
+    function totals() {
+      return todayMeals().reduce((a, m) => {
+        a.calories += Number(m.calories) || 0;
+        a.protein += Number(m.protein) || 0;
+        a.carbs += Number(m.carbs) || 0;
+        a.fat += Number(m.fat) || 0;
+        return a;
+      }, { calories:0, protein:0, carbs:0, fat:0 });
+    }
+
+    function renderSummary() {
+      const t = totals();
+      const keys = ['calories','protein','carbs','fat'];
+      $('summaryGrid').innerHTML = keys.map(k => {
+        const target = Number(state.targets[k]) || 0;
+        const used = round(t[k]);
+        const pct = target > 0 ? Math.min(100, used / target * 100) : 0;
+        return `<div class="metric"><div class="metric-label"><span>${metricLabel(k)}</span><span>${Math.round(pct)}%</span></div><div class="metric-main">${used}<small> / ${target} ${unit(k)}</small></div><div class="bar"><span style="width:${pct}%"></span></div></div>`;
+      }).join('');
+
+      $('remainingGrid').innerHTML = keys.map(k => {
+        const remain = round((Number(state.targets[k]) || 0) - t[k]);
+        return `<div class="remain-item ${remain < 0 ? 'negative' : ''}"><div class="label">剩餘${metricLabel(k)}</div><div class="value">${remain}<small> ${unit(k)}</small></div></div>`;
+      }).join('');
+    }
+
+    function renderTargets() {
+      $('targetCalories').value = state.targets.calories;
+      $('targetProtein').value = state.targets.protein;
+      $('targetCarbs').value = state.targets.carbs;
+      $('targetFat').value = state.targets.fat;
+    }
+
+    function renderMeals() {
+      const meals = todayMeals().sort((a,b) => String(b.id).localeCompare(String(a.id)));
+      $('mealList').innerHTML = meals.length ? meals.map(m => `
+        <div class="meal-card">
+          <div class="meal-head">
+            <div>
+              <div class="title">${esc(m.name)}</div>
+              <div class="meta">${m.type}｜${m.calories} kcal｜P ${m.protein}g／C ${m.carbs}g／F ${m.fat}g</div>
+              ${m.note ? `<div class="meta">備註：${esc(m.note)}</div>` : ''}
+            </div>
+            <button class="ghost" data-delete-meal="${m.id}">刪除</button>
+          </div>
+          <div class="pill-row"><span class="pill">可信度：${m.confidence}</span><span class="pill">來源：${m.source}</span><span class="pill">份量：${m.serving}x</span></div>
+        </div>`).join('') : '<div class="empty">今天還沒有餐點紀錄。</div>';
+    }
+
+    function renderTemplates() {
+      $('templateList').innerHTML = state.templates.map(t => `
+        <div class="template-card">
+          <div class="template-head">
+            <div>
+              <div class="title">${esc(t.name)}</div>
+              <div class="meta">${t.calories} kcal｜P ${t.protein}g／C ${t.carbs}g／F ${t.fat}g｜可信度：${t.confidence}</div>
+            </div>
+            <button class="secondary" data-fill-template="${t.id}">帶入</button>
+          </div>
+          <div class="qty-box">
+            <input class="small-input" type="number" min="0" step="0.1" value="1" id="qty_${t.id}" />
+            <button data-add-template="${t.id}">直接新增</button>
+          </div>
+        </div>`).join('');
+    }
+
+    function renderAll() {
+      $('todayLabel').textContent = `今天：${todayISO()}`;
+      $('userLabel').textContent = currentUser?.email || currentUser?.displayName || '';
+      renderTargets();
+      renderSummary();
+      renderMeals();
+      renderTemplates();
+    }
+
+    function fillFromTemplate(id) {
+      const t = state.templates.find(x => x.id === id);
+      if (!t) return;
+      const s = Number($(`qty_${id}`)?.value || 1);
+      $('mealName').value = t.name;
+      $('mealType').value = t.type || '午餐';
+      $('serving').value = s;
+      $('calories').value = round(t.calories * s);
+      $('protein').value = round(t.protein * s);
+      $('carbs').value = round(t.carbs * s);
+      $('fat').value = round(t.fat * s);
+      $('confidence').value = t.confidence || '中';
+      $('source').value = '模板';
+    }
+
+    async function addTemplateMeal(id) {
+      const t = state.templates.find(x => x.id === id);
+      if (!t) return;
+      const s = Number($(`qty_${id}`)?.value || 1);
+      state.meals.push({
+        id:idNow(), date:todayISO(), name:t.name, type:t.type || '午餐', serving:s,
+        calories:round(t.calories * s), protein:round(t.protein * s), carbs:round(t.carbs * s), fat:round(t.fat * s),
+        confidence:t.confidence || '中', source:'模板', note:''
+      });
+      await saveCloud();
+      renderAll();
+    }
+
+    async function deleteMeal(id) {
+      state.meals = state.meals.filter(m => String(m.id) !== String(id));
+      await saveCloud();
+      renderAll();
+    }
+
+    $('googleLoginBtn').addEventListener('click', async () => {
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        setStatus(`Google 登入失敗：${err.message}`, 'error');
+      }
+    });
+
+    $('logoutBtn').addEventListener('click', () => signOut(auth));
+
+    $('mealForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const meal = {
+        id:idNow(), date:todayISO(), name:$('mealName').value.trim(), type:$('mealType').value,
+        serving:round($('serving').value), calories:round($('calories').value), protein:round($('protein').value),
+        carbs:round($('carbs').value), fat:round($('fat').value), confidence:$('confidence').value,
+        source:$('source').value, note:$('note').value.trim()
+      };
+      if (!meal.name) return;
+      state.meals.push(meal);
+      await saveCloud();
+      e.target.reset();
+      $('serving').value = 1;
+      $('confidence').value = '中';
+      $('source').value = '手動輸入';
+      renderAll();
+    });
+
+    $('resetFormBtn').addEventListener('click', () => {
+      $('mealForm').reset();
+      $('serving').value = 1;
+      $('confidence').value = '中';
+      $('source').value = '手動輸入';
+    });
+
+    $('saveTargetsBtn').addEventListener('click', async () => {
+      state.targets = {
+        calories:round($('targetCalories').value), protein:round($('targetProtein').value),
+        carbs:round($('targetCarbs').value), fat:round($('targetFat').value)
+      };
+      await saveCloud();
+      renderAll();
+    });
+
+    $('clearTodayBtn').addEventListener('click', async () => {
+      if (!confirm('確定要清空今日所有餐點？')) return;
+      state.meals = state.meals.filter(m => m.date !== todayISO());
+      await saveCloud();
+      renderAll();
+    });
+
+    $('templateList').addEventListener('click', e => {
+      if (e.target.dataset.fillTemplate) fillFromTemplate(e.target.dataset.fillTemplate);
+      if (e.target.dataset.addTemplate) addTemplateMeal(e.target.dataset.addTemplate);
+    });
+
+    $('mealList').addEventListener('click', e => {
+      if (e.target.dataset.deleteMeal) deleteMeal(e.target.dataset.deleteMeal);
+    });
+
+    onAuthStateChanged(auth, user => {
+      currentUser = user;
+      if (currentDataRef) {
+        off(currentDataRef);
+        currentDataRef = null;
+      }
+
+      if (!user) {
+        state = structuredClone(defaultState);
+        $('authView').classList.remove('hidden');
+        $('appView').classList.add('hidden');
+        return;
+      }
+
+      $('authView').classList.add('hidden');
+      $('appView').classList.remove('hidden');
+      currentDataRef = userRef(user.uid);
+
+      onValue(currentDataRef, async snapshot => {
+        const exists = snapshot.exists();
+        state = normalizeState(snapshot.val());
+        if (!exists && !isSaving) {
+          await saveCloud();
+        }
+        renderAll();
+      });
+    });
+  </script>
+</body>
+</html>
