@@ -63,9 +63,15 @@
     .pill{font-size:12px;color:var(--muted);background:#f4eee8;border-radius:999px;padding:5px 8px}
     .qty-box{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px;align-items:center}
     .small-input{max-width:94px}
-    .notice,.status{margin-top:10px;padding:11px 12px;border-radius:15px;font-size:13px;line-height:1.55}
+    .notice,.status,.ai-result{margin-top:10px;padding:11px 12px;border-radius:15px;font-size:13px;line-height:1.55}
     .notice{background:#fff8df;color:#76622c}
     .status{background:#eef5ef;color:var(--ok);display:none}
+    .ai-panel{border:1px solid var(--line);border-radius:18px;background:#fff;padding:13px}
+    .ai-panel textarea{min-height:108px}
+    .ai-result{background:#eef5ef;color:var(--ok);display:none}
+    .ai-result.error{background:#f3ddd7;color:var(--danger)}
+    .ai-result ul{margin:8px 0 0;padding-left:18px}
+    button:disabled{opacity:.62;cursor:not-allowed;transform:none}
     .status.error{background:#f3ddd7;color:var(--danger)}
     .empty{color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:18px;background:rgba(255,255,255,.55);text-align:center;font-size:14px}
     .section-gap{margin-top:18px}.hidden{display:none!important}
@@ -141,6 +147,20 @@
           <div class="card section-gap">
             <h2>新增餐點</h2>
             <div class="notice">新增餐點會記錄在目前查看的日期；營養欄位請填 1 份的數值，送出時會依「份量倍數」換算。蛋白質、碳水、脂肪三項填完後，熱量會自動計算。</div>
+            <div class="ai-panel section-gap">
+              <div class="template-head">
+                <div>
+                  <div class="title">AI 餐點估算</div>
+                  <div class="meta">透過 Google Apps Script 代理 Gemini API；估算結果只會帶入下方欄位，不會自動寫入 Firebase。</div>
+                </div>
+                <button type="button" class="secondary" id="toggleAiPanelBtn">AI估算</button>
+              </div>
+              <div id="aiInputPanel" class="section-gap hidden">
+                <div><label>餐點描述</label><textarea id="aiMealText" placeholder="例如：雞腿便當飯半碗、炸皮沒吃，配無糖茶；或：超商雞胸沙拉加一顆茶葉蛋"></textarea></div>
+                <div class="actions"><button type="button" id="estimateAiBtn">AI 估算</button><button type="button" class="ghost" id="clearAiBtn">清空</button></div>
+                <div id="aiResult" class="ai-result"></div>
+              </div>
+            </div>
             <form id="mealForm" class="section-gap">
               <div><label>餐點名稱</label><input id="mealName" placeholder="例如：火鍋、小酌、自訂餐點" required /></div>
               <div class="form-row">
@@ -205,6 +225,10 @@
     const db = getDatabase(app);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
+
+    // TODO: 部署 Google Apps Script Web App 後，將 /exec URL 貼到這裡。
+    // 前端不保存 Gemini API key；此 URL 只呼叫 Apps Script 代理層。
+    const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz5SoeTLBewvdjQAuMqV7IMSEHkX4JpDCPqApjLB1MpiE_Bylj3xH-f8jnO-rsLjeLmKw/exec';
 
     const defaultState = {
       targets:{ calories:2100, protein:130, carbs:220, fat:65 },
@@ -273,6 +297,19 @@
       el.textContent = message;
       el.className = `status ${type === 'error' ? 'error' : ''}`;
       el.style.display = 'block';
+    }
+
+    function setAiResult(html, type='ok') {
+      const el = $('aiResult');
+      el.innerHTML = html;
+      el.className = `ai-result ${type === 'error' ? 'error' : ''}`;
+      el.style.display = 'block';
+    }
+
+    function clearAiResult() {
+      $('aiResult').innerHTML = '';
+      $('aiResult').style.display = 'none';
+      $('aiResult').className = 'ai-result';
     }
 
     async function saveCloud() {
@@ -413,6 +450,80 @@
       $('source').value = '手動輸入';
     }
 
+    function fillMealFormFromAi(estimate) {
+      $('mealName').value = estimate.name || 'AI 估算餐點';
+      $('serving').value = 1;
+      $('calories').value = round(estimate.calories);
+      $('protein').value = round(estimate.protein);
+      $('carbs').value = round(estimate.carbs);
+      $('fat').value = round(estimate.fat);
+      $('source').value = '手動輸入';
+      $('note').value = [
+        `AI估算（信心：${estimate.confidence}）`,
+        estimate.servingDescription ? `份量：${estimate.servingDescription}` : '',
+        estimate.reason ? `理由：${estimate.reason}` : '',
+        Array.isArray(estimate.warnings) && estimate.warnings.length ? `提醒：${estimate.warnings.join('；')}` : ''
+      ].filter(Boolean).join('\n');
+    }
+
+    async function estimateMealWithAi() {
+      const text = $('aiMealText').value.trim();
+      if (!text) {
+        setAiResult('請先輸入餐點描述。', 'error');
+        return;
+      }
+      if (!APPS_SCRIPT_WEB_APP_URL) {
+        setAiResult('尚未設定 Apps Script Web App URL。請在程式碼中的 APPS_SCRIPT_WEB_APP_URL 填入部署後的 /exec 網址。', 'error');
+        return;
+      }
+      if (!currentUser) {
+        setAiResult('請先登入 Google 帳號。', 'error');
+        return;
+      }
+
+      const btn = $('estimateAiBtn');
+      btn.disabled = true;
+      btn.textContent = '估算中…';
+      clearAiResult();
+
+      try {
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            idToken,
+            text,
+            date: selectedDate,
+            targets: state.targets,
+            todayTotals: totals(selectedDate)
+          })
+        });
+        const data = await response.json();
+        if (!response.ok || data.ok === false) {
+          throw new Error(data.error || `Apps Script 回傳錯誤（HTTP ${response.status}）`);
+        }
+
+        const estimate = data.result || data;
+        fillMealFormFromAi(estimate);
+        const warnings = Array.isArray(estimate.warnings) && estimate.warnings.length
+          ? `<ul>${estimate.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>`
+          : '';
+        setAiResult(`
+          <strong>已帶入新增餐點欄位，請確認後再按「新增餐點」。</strong><br>
+          ${esc(estimate.name)}｜${round(estimate.calories)} kcal｜P ${round(estimate.protein)}g／C ${round(estimate.carbs)}g／F ${round(estimate.fat)}g<br>
+          信心：${esc(estimate.confidence)}${estimate.servingDescription ? `｜份量：${esc(estimate.servingDescription)}` : ''}
+          ${estimate.reason ? `<br>理由：${esc(estimate.reason)}` : ''}
+          ${warnings}
+        `);
+      } catch (err) {
+        setAiResult(`AI 估算失敗：${esc(err.message)}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'AI 估算';
+      }
+    }
+
     function resetTemplateForm() {
       $('templateForm').reset();
       $('templateCalories').value = 0;
@@ -504,6 +615,19 @@
     });
 
     $('resetFormBtn').addEventListener('click', resetMealForm);
+
+    $('toggleAiPanelBtn').addEventListener('click', () => {
+      $('aiInputPanel').classList.toggle('hidden');
+      if (!$('aiInputPanel').classList.contains('hidden')) $('aiMealText').focus();
+    });
+
+    $('estimateAiBtn').addEventListener('click', estimateMealWithAi);
+
+    $('clearAiBtn').addEventListener('click', () => {
+      $('aiMealText').value = '';
+      clearAiResult();
+      $('aiMealText').focus();
+    });
 
     $('templateForm').addEventListener('submit', async e => {
       e.preventDefault();
