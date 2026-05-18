@@ -47,6 +47,14 @@
     button.secondary{background:#fff;color:var(--accent);border:1px solid var(--line)}
     button.ghost{background:transparent;color:var(--muted);padding-inline:8px}
     .template-list,.meal-list{display:grid;gap:10px}
+    .date-picker{display:flex;gap:8px;align-items:center;background:rgba(255,255,255,.8);border:1px solid var(--line);border-radius:999px;padding:7px 10px 7px 14px;color:var(--muted);font-size:14px}
+    .date-picker input{width:auto;min-width:145px;border:0;background:transparent;padding:3px;color:var(--text);box-shadow:none}
+    .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:18px;background:#fff}
+    table{width:100%;border-collapse:collapse;min-width:680px}
+    th,td{padding:12px 13px;text-align:left;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap}
+    th{color:var(--muted);font-weight:650;background:#fffaf5}
+    tr:last-child td{border-bottom:0}
+    .date-link{border:0;background:transparent;color:var(--accent);padding:0;border-radius:0;font-weight:750;text-decoration:underline;text-underline-offset:3px}
     .template-card,.meal-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:13px}
     .template-head,.meal-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
     .title{font-weight:760;margin-bottom:4px}
@@ -61,7 +69,7 @@
     .status.error{background:#f3ddd7;color:var(--danger)}
     .empty{color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:18px;background:rgba(255,255,255,.55);text-align:center;font-size:14px}
     .section-gap{margin-top:18px}.hidden{display:none!important}
-    @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}}
+    @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}.date-picker{border-radius:18px;align-items:flex-start;flex-direction:column}.date-picker input{width:100%}}
   </style>
 </head>
 <body>
@@ -80,9 +88,13 @@
       <header>
         <div>
           <h1>個人熱量計算 Firebase MVP</h1>
-          <p class="subtitle">Google 登入、Firebase 同步、餐點紀錄、常用模板、份量微調、本日剩餘營養額度。</p>
+          <p class="subtitle">Google 登入、Firebase 同步、餐點紀錄、常用模板、份量微調、選日期查看歷史與逐日統計。</p>
         </div>
         <div class="top-actions">
+          <div class="date-picker">
+            <label for="viewDate">查看日期</label>
+            <input id="viewDate" type="date" />
+          </div>
           <div class="chip" id="todayLabel"></div>
           <div class="chip" id="userLabel"></div>
           <button class="secondary" id="logoutBtn" type="button">登出</button>
@@ -92,16 +104,21 @@
       <section class="grid">
         <div>
           <div class="card">
-            <h2>今日總覽</h2>
+            <h2 id="summaryTitle">日期總覽</h2>
             <div class="summary-grid" id="summaryGrid"></div>
-            <h2 class="section-gap">本日剩餘營養額度</h2>
+            <h2 class="section-gap" id="remainingTitle">剩餘營養額度</h2>
             <div class="remaining" id="remainingGrid"></div>
-            <div class="notice">剩餘額度以每日目標扣除今日已記錄餐點。變紅代表已超過目標。</div>
+            <div class="notice" id="summaryNotice">剩餘額度以每日目標扣除所選日期已記錄餐點。變紅代表已超過目標。</div>
           </div>
           <div class="card section-gap">
-            <h2>今日餐點</h2>
+            <h2 id="mealListTitle">日期餐點</h2>
             <div class="meal-list" id="mealList"></div>
-            <div class="actions section-gap"><button class="secondary" id="clearTodayBtn" type="button">清空今日餐點</button></div>
+            <div class="actions section-gap"><button class="secondary" id="clearTodayBtn" type="button">清空所選日期餐點</button></div>
+          </div>
+
+          <div class="card section-gap">
+            <h2>逐日統計表</h2>
+            <div class="table-wrap" id="dailyStatsTable"></div>
           </div>
         </div>
 
@@ -123,7 +140,8 @@
 
           <div class="card section-gap">
             <h2>新增餐點</h2>
-            <form id="mealForm">
+            <div class="notice">新增餐點會記錄在目前查看的日期，可先用上方日期選擇器切換到歷史日期。</div>
+            <form id="mealForm" class="section-gap">
               <div><label>餐點名稱</label><input id="mealName" placeholder="例如：雞腿便當、火鍋、小酌" required /></div>
               <div class="form-row">
                 <div><label>餐別</label><select id="mealType"><option>早餐</option><option selected>午餐</option><option>晚餐</option><option>點心</option><option>酒精</option></select></div>
@@ -197,6 +215,7 @@
     let currentUser = null;
     let currentDataRef = null;
     let isSaving = false;
+    let selectedDate = '';
 
     const $ = id => document.getElementById(id);
     const round = n => Math.round((Number(n)||0)*10)/10;
@@ -204,6 +223,7 @@
       const d = new Date();
       return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     };
+    selectedDate = todayISO();
     const idNow = () => {
       const d = new Date();
       const p = n => String(n).padStart(2,'0');
@@ -212,7 +232,8 @@
     const esc = s => String(s||'').replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
     const metricLabel = k => ({calories:'熱量',protein:'蛋白質',carbs:'碳水',fat:'脂肪'}[k]);
     const unit = k => k === 'calories' ? 'kcal' : 'g';
-    const todayMeals = () => state.meals.filter(m => m.date === todayISO());
+    const mealsForDate = date => state.meals.filter(m => m.date === date);
+    const selectedMeals = () => mealsForDate(selectedDate);
     const userRef = uid => ref(db, `users/${uid}/calorieApp`);
 
     function normalizeState(raw) {
@@ -240,8 +261,8 @@
       isSaving = false;
     }
 
-    function totals() {
-      return todayMeals().reduce((a, m) => {
+    function totals(date = selectedDate) {
+      return mealsForDate(date).reduce((a, m) => {
         a.calories += Number(m.calories) || 0;
         a.protein += Number(m.protein) || 0;
         a.carbs += Number(m.carbs) || 0;
@@ -274,7 +295,7 @@
     }
 
     function renderMeals() {
-      const meals = todayMeals().sort((a,b) => String(b.id).localeCompare(String(a.id)));
+      const meals = selectedMeals().sort((a,b) => String(b.id).localeCompare(String(a.id)));
       $('mealList').innerHTML = meals.length ? meals.map(m => `
         <div class="meal-card">
           <div class="meal-head">
@@ -286,7 +307,52 @@
             <button class="ghost" data-delete-meal="${m.id}">刪除</button>
           </div>
           <div class="pill-row"><span class="pill">可信度：${m.confidence}</span><span class="pill">來源：${m.source}</span><span class="pill">份量：${m.serving}x</span></div>
-        </div>`).join('') : '<div class="empty">今天還沒有餐點紀錄。</div>';
+        </div>`).join('') : '<div class="empty">所選日期還沒有餐點紀錄。</div>';
+    }
+
+    function dayLabel(date) {
+      return date === todayISO() ? `${date}（今天）` : date;
+    }
+
+    function dailyStats() {
+      const grouped = state.meals.reduce((acc, meal) => {
+        const date = meal.date || todayISO();
+        if (!acc[date]) acc[date] = { date, count:0, calories:0, protein:0, carbs:0, fat:0 };
+        acc[date].count += 1;
+        acc[date].calories += Number(meal.calories) || 0;
+        acc[date].protein += Number(meal.protein) || 0;
+        acc[date].carbs += Number(meal.carbs) || 0;
+        acc[date].fat += Number(meal.fat) || 0;
+        return acc;
+      }, {});
+      if (!grouped[selectedDate]) grouped[selectedDate] = { date:selectedDate, count:0, calories:0, protein:0, carbs:0, fat:0 };
+      return Object.values(grouped).sort((a,b) => String(b.date).localeCompare(String(a.date)));
+    }
+
+    function renderDailyStats() {
+      const rows = dailyStats();
+      $('dailyStatsTable').innerHTML = rows.length ? `
+        <table>
+          <thead>
+            <tr><th>日期</th><th>餐點數</th><th>熱量</th><th>蛋白質</th><th>碳水</th><th>脂肪</th><th>熱量目標</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            ${rows.map(day => {
+              const targetCalories = Number(state.targets.calories) || 0;
+              const pct = targetCalories > 0 ? Math.round((day.calories / targetCalories) * 100) : 0;
+              return `<tr>
+                <td>${day.date === selectedDate ? '<strong>' + esc(dayLabel(day.date)) + '</strong>' : esc(dayLabel(day.date))}</td>
+                <td>${day.count}</td>
+                <td>${round(day.calories)} kcal</td>
+                <td>${round(day.protein)} g</td>
+                <td>${round(day.carbs)} g</td>
+                <td>${round(day.fat)} g</td>
+                <td>${targetCalories ? pct + '%' : '未設定'}</td>
+                <td><button class="date-link" type="button" data-view-date="${day.date}">查看</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>` : '<div class="empty">還沒有任何日期統計。</div>';
     }
 
     function renderTemplates() {
@@ -307,12 +373,17 @@
     }
 
     function renderAll() {
-      $('todayLabel').textContent = `今天：${todayISO()}`;
+      $('viewDate').value = selectedDate;
+      $('todayLabel').textContent = `目前查看：${dayLabel(selectedDate)}`;
+      $('summaryTitle').textContent = `${dayLabel(selectedDate)} 總覽`;
+      $('remainingTitle').textContent = `${dayLabel(selectedDate)} 剩餘營養額度`;
+      $('mealListTitle').textContent = `${dayLabel(selectedDate)} 餐點`;
       $('userLabel').textContent = currentUser?.email || currentUser?.displayName || '';
       renderTargets();
       renderSummary();
       renderMeals();
       renderTemplates();
+      renderDailyStats();
     }
 
     function fillFromTemplate(id) {
@@ -335,7 +406,7 @@
       if (!t) return;
       const s = Number($(`qty_${id}`)?.value || 1);
       state.meals.push({
-        id:idNow(), date:todayISO(), name:t.name, type:t.type || '午餐', serving:s,
+        id:idNow(), date:selectedDate, name:t.name, type:t.type || '午餐', serving:s,
         calories:round(t.calories * s), protein:round(t.protein * s), carbs:round(t.carbs * s), fat:round(t.fat * s),
         confidence:t.confidence || '中', source:'模板', note:''
       });
@@ -362,7 +433,7 @@
     $('mealForm').addEventListener('submit', async e => {
       e.preventDefault();
       const meal = {
-        id:idNow(), date:todayISO(), name:$('mealName').value.trim(), type:$('mealType').value,
+        id:idNow(), date:selectedDate, name:$('mealName').value.trim(), type:$('mealType').value,
         serving:round($('serving').value), calories:round($('calories').value), protein:round($('protein').value),
         carbs:round($('carbs').value), fat:round($('fat').value), confidence:$('confidence').value,
         source:$('source').value, note:$('note').value.trim()
@@ -394,10 +465,22 @@
     });
 
     $('clearTodayBtn').addEventListener('click', async () => {
-      if (!confirm('確定要清空今日所有餐點？')) return;
-      state.meals = state.meals.filter(m => m.date !== todayISO());
+      if (!confirm(`確定要清空 ${selectedDate} 的所有餐點？`)) return;
+      state.meals = state.meals.filter(m => m.date !== selectedDate);
       await saveCloud();
       renderAll();
+    });
+
+    $('viewDate').addEventListener('change', e => {
+      selectedDate = e.target.value || todayISO();
+      renderAll();
+    });
+
+    $('dailyStatsTable').addEventListener('click', e => {
+      if (!e.target.dataset.viewDate) return;
+      selectedDate = e.target.dataset.viewDate;
+      renderAll();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
     $('templateList').addEventListener('click', e => {
