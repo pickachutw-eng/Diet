@@ -499,7 +499,13 @@
             todayTotals: totals(selectedDate)
           })
         });
-        const data = await response.json();
+        const raw = await response.text();
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (_) {
+          throw new Error(`Apps Script 回傳非 JSON 內容（HTTP ${response.status}）。請確認 Web App 是否為最新部署版本；若頁面顯示「找不到以下指令碼函式：doGet」，代表你開到舊版部署，請重新部署後更新 /exec URL。`);
+        }
         if (!response.ok || data.ok === false) {
           throw new Error(data.error || `Apps Script 回傳錯誤（HTTP ${response.status}）`);
         }

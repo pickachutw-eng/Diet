@@ -56,3 +56,17 @@ const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/你的部署
 ```
 
 Apps Script 只回傳 JSON；AI 估算結果只會帶入新增餐點表單，必須由使用者自行按「新增餐點」後才會寫入 Firebase Database。
+
+
+### 5. 若開啟 `/exec` 顯示「找不到以下指令碼函式：doGet」
+
+這通常不是 API key 問題，而是 **部署版本不是最新**（或 `index.html` 指到舊的 Web App URL）。
+
+請依序檢查：
+
+1. Apps Script 專案內確實有 `doGet()` 與 `doPost()`。
+2. 在 Apps Script 按「部署」→「管理部署作業」，對目前部署按「編輯」並建立**新版本**。
+3. 重新複製該部署的 `/exec` URL，更新 `index.html` 的 `APPS_SCRIPT_WEB_APP_URL`。
+4. 等待 1–2 分鐘再重試（Google 端偶爾有快取延遲）。
+5. 用瀏覽器直接開 `/exec`，應看到 JSON（例如 `ok: true`），而不是錯誤頁。
+
