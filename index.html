@@ -77,7 +77,13 @@
     .status.error{background:#f3ddd7;color:var(--danger)}
     .empty{color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:18px;background:rgba(255,255,255,.55);text-align:center;font-size:14px}
     .section-gap{margin-top:18px}.hidden{display:none!important}
-    @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}.date-picker{border-radius:18px;align-items:flex-start;flex-direction:column}.date-picker input{width:100%}}
+    .panel-side{position:relative}
+    .panel-side .panel-toggle{position:absolute;top:20px;right:20px;z-index:2}
+    .panel-side .panel-body.hidden{display:none!important}
+    .recommend-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:13px}
+    .recommend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .strategy{font-size:13px;color:var(--muted);line-height:1.6}
+    @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row,.recommend-grid{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}.date-picker{border-radius:18px;align-items:flex-start;flex-direction:column}.date-picker input{width:100%}}
   </style>
 </head>
 <body>
@@ -131,18 +137,56 @@
         </div>
 
         <div>
-          <div class="card">
-            <h2>每日目標</h2>
-            <div class="stack">
-              <div class="form-row">
-                <div><label>熱量 kcal</label><input type="number" id="targetCalories" /></div>
-                <div><label>蛋白質 g</label><input type="number" id="targetProtein" /></div>
+          <div class="card panel-side">
+            <button type="button" class="collapse-toggle panel-toggle" id="toggleMybodyPanelBtn" aria-expanded="true" aria-controls="mybodyPanel" aria-label="收闔 Mybody">▾</button>
+            <h2>Mybody</h2>
+            <div id="mybodyPanel" class="panel-body stack">
+              <div>
+                <div class="title">每日目標</div>
+                <div class="form-row section-gap">
+                  <div><label>熱量 kcal</label><input type="number" id="targetCalories" /></div>
+                  <div><label>蛋白質 g</label><input type="number" id="targetProtein" /></div>
+                </div>
+                <div class="form-row">
+                  <div><label>碳水 g</label><input type="number" id="targetCarbs" /></div>
+                  <div><label>脂肪 g</label><input type="number" id="targetFat" /></div>
+                </div>
+                <div class="actions"><button id="saveTargetsBtn" type="button">儲存目標</button></div>
               </div>
-              <div class="form-row">
-                <div><label>碳水 g</label><input type="number" id="targetCarbs" /></div>
-                <div><label>脂肪 g</label><input type="number" id="targetFat" /></div>
+              <div class="recommend-card">
+                <div class="title">基本資料</div>
+                <div class="form-row section-gap">
+                  <div><label>性別</label><select id="profileGender"><option value="female">女性</option><option value="male">男性</option></select></div>
+                  <div><label>年齡</label><input type="number" id="profileAge" min="12" max="90" /></div>
+                </div>
+                <div class="form-row">
+                  <div><label>身高 cm</label><input type="number" id="profileHeight" min="120" max="230" /></div>
+                  <div><label>活動量</label><select id="profileActivity"><option value="sedentary">久坐</option><option value="light">輕度活動</option><option value="moderate">中度活動</option><option value="active">高活動</option><option value="very_active">非常高活動</option></select></div>
+                </div>
+                <div class="form-row">
+                  <div><label>每週運動次數</label><input type="number" id="profileExerciseFreq" min="0" max="14" /></div>
+                  <div><label>主要目標</label><select id="profileGoal"><option value="fat_loss">減脂</option><option value="maintain">維持</option><option value="recomposition">體態重組</option><option value="muscle_gain">增肌</option></select></div>
+                </div>
+                <div><label>速度</label><select id="profilePace"><option value="conservative">保守</option><option value="standard">標準</option><option value="aggressive">積極</option></select></div>
               </div>
-              <div class="actions"><button id="saveTargetsBtn" type="button">儲存目標</button></div>
+              <div class="recommend-card">
+                <div class="title">InBody 數值</div>
+                <div class="form-row section-gap">
+                  <div><label>InBody 日期</label><input type="date" id="inbodyDate" /></div>
+                  <div><label>體重 kg</label><input type="number" id="inbodyWeight" min="30" max="200" step="0.1" /></div>
+                </div>
+                <div class="form-row">
+                  <div><label>體脂率 %</label><input type="number" id="inbodyBodyFat" min="3" max="60" step="0.1" /></div>
+                  <div><label>骨骼肌量 kg</label><input type="number" id="inbodySmm" min="10" max="80" step="0.1" /></div>
+                </div>
+                <div class="form-row">
+                  <div><label>InBody BMR（優先）</label><input type="number" id="inbodyBmr" min="800" max="3200" step="1" /></div>
+                  <div><label>內臟脂肪等級（選填）</label><input type="number" id="inbodyVisceralFat" min="1" max="30" step="1" /></div>
+                </div>
+                <div><label>腰臀比（選填）</label><input type="number" id="inbodyWhr" min="0.5" max="1.5" step="0.01" /></div>
+              </div>
+              <div class="actions"><button type="button" id="generateRecommendationBtn">產生熱量建議</button><button type="button" class="secondary" id="applyRecommendationBtn">套用為每日目標</button></div>
+              <div id="recommendationResult" class="notice">尚未產生建議。</div>
             </div>
           </div>
 
@@ -241,7 +285,10 @@
       targets:{ calories:2100, protein:130, carbs:220, fat:65 },
       meals:[],
       templates:[],
-      updatedAt:null
+      updatedAt:null,
+      profile:null,
+      inbodyRecords:[],
+      recommendations:[]
     };
 
     let state = structuredClone(defaultState);
@@ -295,9 +342,34 @@
         ...data,
         targets: { ...defaultState.targets, ...(data.targets || {}) },
         meals,
-        templates
+        templates,
+        profile: { ...(data.profile || {}) },
+        inbodyRecords: Array.isArray(data.inbodyRecords) ? data.inbodyRecords : [],
+        recommendations: Array.isArray(data.recommendations) ? data.recommendations : []
       };
     }
+
+    
+    const activityFactors = { sedentary:1.2, light:1.375, moderate:1.55, active:1.725, very_active:1.9 };
+    const paceAdjustments = { fat_loss:{conservative:-0.1,standard:-0.15,aggressive:-0.2}, maintain:{conservative:0,standard:0,aggressive:0}, recomposition:{conservative:-0.03,standard:-0.06,aggressive:-0.1}, muscle_gain:{conservative:0.05,standard:0.08,aggressive:0.12} };
+    const proteinFactor = { fat_loss:2.0, maintain:1.7, recomposition:2.1, muscle_gain:1.9 };
+
+    function calculateBmr(profile, inbody) {
+      if (Number(inbody.bmr) > 0) return { value: round(inbody.bmr), source:'InBody BMR' };
+      const w = Number(inbody.weight); const h = Number(profile.height); const a = Number(profile.age);
+      const base = 10*w + 6.25*h - 5*a + (profile.gender === 'male' ? 5 : -161);
+      return { value: round(Math.max(base, 900)), source:'Mifflin-St Jeor 估算' };
+    }
+    const calculateTdee = (bmr, profile) => round(bmr * (activityFactors[profile.activity] || 1.2));
+    function calculateCaloriesTarget(tdee, profile){ const ratio = paceAdjustments[profile.goal]?.[profile.pace] ?? 0; return round(Math.max(1200, tdee * (1 + ratio))); }
+    function calculateMacros(weight, calorieTarget, profile){
+      const p = round(Math.max(weight*1.4, weight*(proteinFactor[profile.goal]||1.7)));
+      const fatMin = Math.max(weight*0.6, calorieTarget*0.22/9);
+      const f = round(Math.max(40, fatMin));
+      const carbs = round(Math.max(80, (calorieTarget - p*4 - f*9)/4));
+      return { protein:p, fat:f, carbs };
+    }
+    function recommendationStrategy(profile){ return `${profile.goal==='fat_loss'?'以穩定赤字減脂':profile.goal==='muscle_gain'?'以小幅盈餘增肌':profile.goal==='recomposition'?'維持附近搭配高蛋白重組':'以維持熱量穩定體重'}，先執行 2 週再依體重趨勢微調。`; }
 
     function setStatus(message, type='ok') {
       const el = $('authStatus');
@@ -357,6 +429,17 @@
       $('targetProtein').value = state.targets.protein;
       $('targetCarbs').value = state.targets.carbs;
       $('targetFat').value = state.targets.fat;
+    }
+    function renderMybody(){
+      const p = state.profile || {};
+      $('profileGender').value = p.gender || 'female'; $('profileAge').value = p.age || ''; $('profileHeight').value = p.height || '';
+      $('profileActivity').value = p.activity || 'light'; $('profileExerciseFreq').value = p.exerciseFreq ?? '';
+      $('profileGoal').value = p.goal || 'fat_loss'; $('profilePace').value = p.pace || 'standard';
+      const latest = (state.inbodyRecords||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0] || {};
+      $('inbodyDate').value = latest.date || todayISO(); $('inbodyWeight').value = latest.weight || ''; $('inbodyBodyFat').value = latest.bodyFat || '';
+      $('inbodySmm').value = latest.smm || ''; $('inbodyBmr').value = latest.bmr || ''; $('inbodyVisceralFat').value = latest.visceralFat || ''; $('inbodyWhr').value = latest.whr || '';
+      const rec = (state.recommendations||[])[0];
+      $('recommendationResult').innerHTML = rec ? `<strong>BMR：</strong>${rec.bmr} kcal（${esc(rec.bmrSource)}）<br><strong>TDEE：</strong>${rec.tdee} kcal<br><strong>建議每日熱量：</strong>${rec.calories} kcal<br><strong>建議營養素：</strong>P ${rec.protein}g｜C ${rec.carbs}g｜F ${rec.fat}g<br><span class="strategy">${esc(rec.strategy)}</span>` : '尚未產生建議。';
     }
 
     function renderMeals() {
@@ -558,6 +641,7 @@
       $('mealListTitle').textContent = `${dayLabel(selectedDate)} 餐點`;
       $('userLabel').textContent = currentUser?.email || currentUser?.displayName || '';
       renderTargets();
+      renderMybody();
       renderSummary();
       renderMeals();
       renderTemplates();
@@ -682,6 +766,35 @@
     });
 
     $('resetTemplateBtn').addEventListener('click', resetTemplateForm);
+
+    
+    $('toggleMybodyPanelBtn').dataset.label = ' Mybody';
+    $('toggleMybodyPanelBtn').addEventListener('click', () => togglePanel('toggleMybodyPanelBtn', 'mybodyPanel'));
+
+    function collectMybodyInput(){
+      return {
+        profile:{ gender:$('profileGender').value, age:Number($('profileAge').value), height:Number($('profileHeight').value), activity:$('profileActivity').value, exerciseFreq:Number($('profileExerciseFreq').value), goal:$('profileGoal').value, pace:$('profilePace').value },
+        inbody:{ date:$('inbodyDate').value || todayISO(), weight:Number($('inbodyWeight').value), bodyFat:Number($('inbodyBodyFat').value), smm:Number($('inbodySmm').value), bmr:Number($('inbodyBmr').value), visceralFat:Number($('inbodyVisceralFat').value)||null, whr:Number($('inbodyWhr').value)||null }
+      };
+    }
+
+    $('generateRecommendationBtn').addEventListener('click', async ()=>{
+      const {profile,inbody} = collectMybodyInput();
+      if (!profile.age || !profile.height || !inbody.weight) { $('recommendationResult').textContent='請先填寫必要欄位：年齡、身高、體重。'; return; }
+      const bmrInfo = calculateBmr(profile, inbody); const tdee = calculateTdee(bmrInfo.value, profile); const calories = calculateCaloriesTarget(tdee, profile); const macros = calculateMacros(inbody.weight, calories, profile);
+      const rec = { id:`rec_${idNow()}`, createdAt:new Date().toISOString(), bmr:bmrInfo.value, bmrSource:bmrInfo.source, tdee, calories, ...macros, strategy:recommendationStrategy(profile) };
+      state.profile = profile;
+      state.inbodyRecords = [inbody, ...(state.inbodyRecords||[]).filter(x=>x.date!==inbody.date)].slice(0,20);
+      state.recommendations = [rec, ...(state.recommendations||[])].slice(0,30);
+      await saveCloud(); renderAll();
+    });
+
+    $('applyRecommendationBtn').addEventListener('click', async ()=>{
+      const rec = (state.recommendations||[])[0];
+      if (!rec) { $('recommendationResult').textContent='請先產生熱量建議。'; return; }
+      state.targets = { calories:rec.calories, protein:rec.protein, carbs:rec.carbs, fat:rec.fat };
+      await saveCloud(); renderAll();
+    });
 
     $('saveTargetsBtn').addEventListener('click', async () => {
       state.targets = {
