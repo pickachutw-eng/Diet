@@ -13,6 +13,15 @@ const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models
 const CONFIDENCE_VALUES = ['high', 'medium', 'low'];
 const REQUIRED_FIELDS = ['name', 'calories', 'protein', 'carbs', 'fat', 'confidence', 'servingDescription', 'reason', 'warnings'];
 
+
+function doGet() {
+  return json_({
+    ok: true,
+    service: 'gemini-proxy',
+    message: 'Web App is reachable. Use POST with text/plain JSON body.'
+  });
+}
+
 function doPost(e) {
   try {
     const body = parseRequestBody_(e);

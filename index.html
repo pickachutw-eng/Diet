@@ -517,7 +517,12 @@
           ${warnings}
         `);
       } catch (err) {
-        setAiResult(`AI 估算失敗：${esc(err.message)}`, 'error');
+        const msg = String(err && err.message ? err.message : err);
+        if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+          setAiResult(`AI 估算失敗：無法連線到 Apps Script Web App。<br>請確認：<ul><li>部署類型是 Web app，且使用 <code>/exec</code> 正式網址（不要用 editor 測試網址）。</li><li>誰可存取設為 <strong>Anyone</strong>（或至少 Anyone with Google account）。</li><li>你已在 Apps Script 重新部署最新版本，且 <code>APPS_SCRIPT_WEB_APP_URL</code> 與部署網址完全一致。</li><li>網址可直接在瀏覽器開啟（應看到 JSON 回應，而不是權限頁或 404）。</li></ul>原始錯誤：${esc(msg)}`, 'error');
+        } else {
+          setAiResult(`AI 估算失敗：${esc(msg)}`, 'error');
+        }
       } finally {
         btn.disabled = false;
         btn.textContent = 'AI 估算';
