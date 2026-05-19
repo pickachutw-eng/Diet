@@ -16,7 +16,7 @@
     header{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:22px}
     h1{margin:0 0 6px;font-size:30px;letter-spacing:-.04em}
     .subtitle{margin:0;color:var(--muted);font-size:14px;line-height:1.6}
-    .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px;align-items:start}
+    .grid{display:grid;grid-template-columns:3fr 2fr;gap:18px;align-items:start}
     .card{background:rgba(255,250,245,.9);border:1px solid rgba(226,216,206,.9);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;backdrop-filter:blur(8px)}
     .card h2{margin:0 0 14px;font-size:18px}
     .auth-shell{max-width:520px;margin:56px auto}
@@ -85,8 +85,7 @@
     .recommend-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:13px}
     .recommend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     .strategy{font-size:13px;color:var(--muted);line-height:1.6}
-    .summary-meal-row{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
-    @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row,.recommend-grid,.summary-meal-row{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}.date-picker{border-radius:18px;align-items:flex-start;flex-direction:column}.date-picker input{width:100%}}
+    @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row,.recommend-grid{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}.date-picker{border-radius:18px;align-items:flex-start;flex-direction:column}.date-picker input{width:100%}}
   </style>
 </head>
 <body>
@@ -112,7 +111,6 @@
 
       <section class="grid">
         <div>
-          <div class="summary-meal-row">
           <div class="card">
             <div class="template-head">
               <h2 id="summaryTitle">日期總覽</h2>
@@ -126,6 +124,20 @@
             <div class="remaining" id="remainingGrid"></div>
             <div class="notice" id="summaryNotice">剩餘額度以每日目標扣除所選日期已記錄餐點。變紅代表已超過目標。</div>
           </div>
+
+          <div class="card section-gap">
+            <h2 id="mealListTitle">日期餐點</h2>
+            <div class="meal-list" id="mealList"></div>
+            <div class="actions section-gap"><button class="secondary" id="clearTodayBtn" type="button">清空所選日期餐點</button></div>
+          </div>
+
+          <div class="card section-gap">
+            <h2>逐日統計表</h2>
+            <div class="table-wrap" id="dailyStatsTable"></div>
+          </div>
+        </div>
+
+        <div>
           <div class="card">
             <h2>新增餐點</h2>
             <div class="notice">新增餐點會記錄在目前查看的日期；營養欄位請填 1 份的數值，送出時會依「份量倍數」換算。蛋白質、碳水、脂肪三項填完後，熱量會自動計算。</div>
@@ -161,7 +173,6 @@
               <div><label>備註</label><textarea id="note" placeholder="例如：炸皮沒吃、醬料偏多、自訂份量說明"></textarea></div>
               <div class="actions"><button type="submit">新增餐點</button><button type="button" class="secondary" id="resetFormBtn">重設</button></div>
             </form>
-
             <div class="section-gap">
               <div class="template-head">
                 <h2>常用餐點模板</h2>
@@ -186,29 +197,15 @@
               </div>
             </div>
           </div>
-          </div>
-          <div class="card section-gap">
-            <h2 id="mealListTitle">日期餐點</h2>
-            <div class="meal-list" id="mealList"></div>
-            <div class="actions section-gap"><button class="secondary" id="clearTodayBtn" type="button">清空所選日期餐點</button></div>
-          </div>
 
-          <div class="card section-gap">
-            <h2>逐日統計表</h2>
-            <div class="table-wrap" id="dailyStatsTable"></div>
-          </div>
-        </div>
-
-        <div>
-            <button type="button" class="panel-trigger" id="openMybodyDrawerBtn">Mybody</button>
-      <aside class="mybody-drawer" id="mybodyDrawer" aria-hidden="true">
-        <div class="drawer-head">
-          <h2>Mybody</h2>
-          <button type="button" class="collapse-toggle" id="toggleMybodyPanelBtn" aria-expanded="true" aria-controls="mybodyPanel" aria-label="收闔 Mybody">▾</button>
-        </div>
-        <div class="actions"><div class="chip" id="userLabel"></div><button class="secondary" id="logoutBtn" type="button">登出</button></div>
-        <div id="mybodyPanel" class="panel-body stack section-gap">
-              
+          <button type="button" class="panel-trigger" id="openMybodyDrawerBtn">Mybody</button>
+          <aside class="mybody-drawer" id="mybodyDrawer" aria-hidden="true">
+            <div class="drawer-head">
+              <h2>Mybody</h2>
+              <button type="button" class="collapse-toggle" id="toggleMybodyPanelBtn" aria-expanded="true" aria-controls="mybodyPanel" aria-label="收闔 Mybody">▾</button>
+            </div>
+            <div class="actions"><div class="chip" id="userLabel"></div><button class="secondary" id="logoutBtn" type="button">登出</button></div>
+            <div id="mybodyPanel" class="panel-body stack section-gap">
               <div class="recommend-card">
                 <div class="title">基本資料</div>
                 <div class="form-row section-gap">
@@ -255,14 +252,11 @@
                   <div><label>脂肪 g</label><input type="number" id="targetFat" /></div>
                 </div>
                 <div class="actions section-gap"><button id="saveTargetsBtn" type="button">儲存目標</button></div>
-              </div> </div>
-          
-      </aside></div>
-
-
+              </div>
+            </div>
+          </aside>
         </div>
       </section>
-    </section>
   </main>
 
   <script type="module">
