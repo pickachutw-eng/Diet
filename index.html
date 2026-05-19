@@ -85,7 +85,8 @@
     .recommend-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:13px}
     .recommend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     .strategy{font-size:13px;color:var(--muted);line-height:1.6}
-    @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row,.recommend-grid{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}.date-picker{border-radius:18px;align-items:flex-start;flex-direction:column}.date-picker input{width:100%}}
+    .summary-meal-row{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+    @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row,.recommend-grid,.summary-meal-row{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}.date-picker{border-radius:18px;align-items:flex-start;flex-direction:column}.date-picker input{width:100%}}
   </style>
 </head>
 <body>
@@ -106,22 +107,85 @@
           <h1>噗啾噗啾飲食控制器</h1>
           <p class="subtitle">Google 登入、Firebase 同步、餐點紀錄、常用模板、份量微調、選日期查看歷史與逐日統計。</p>
         </div>
-        <div class="top-actions">
-          <div class="date-picker">
-            <label for="viewDate">查看日期</label>
-            <input id="viewDate" type="date" />
-          </div>
-                  </div>
+        <div class="top-actions"></div>
       </header>
 
       <section class="grid">
         <div>
+          <div class="summary-meal-row">
           <div class="card">
-            <h2 id="summaryTitle">日期總覽</h2>
+            <div class="template-head">
+              <h2 id="summaryTitle">日期總覽</h2>
+              <div class="date-picker">
+                <label for="viewDate">查看日期</label>
+                <input id="viewDate" type="date" />
+              </div>
+            </div>
             <div class="summary-grid" id="summaryGrid"></div>
             <h2 class="section-gap" id="remainingTitle">剩餘營養額度</h2>
             <div class="remaining" id="remainingGrid"></div>
             <div class="notice" id="summaryNotice">剩餘額度以每日目標扣除所選日期已記錄餐點。變紅代表已超過目標。</div>
+          </div>
+          <div class="card">
+            <h2>新增餐點</h2>
+            <div class="notice">新增餐點會記錄在目前查看的日期；營養欄位請填 1 份的數值，送出時會依「份量倍數」換算。蛋白質、碳水、脂肪三項填完後，熱量會自動計算。</div>
+            <div class="ai-panel section-gap">
+              <div class="template-head">
+                <div>
+                  <div class="title">AI 餐點估算</div>
+                  <div class="meta">透過 Google Apps Script 代理 Gemini API；估算結果只會帶入下方欄位，不會自動寫入 Firebase。</div>
+                </div>
+                <button type="button" class="collapse-toggle" id="toggleAiPanelBtn" aria-expanded="false" aria-controls="aiInputPanel" aria-label="展開 AI 估算">▸</button>
+              </div>
+              <div id="aiInputPanel" class="section-gap hidden">
+                <div><label>餐點描述</label><textarea id="aiMealText" placeholder="例如：雞腿便當飯半碗、炸皮沒吃，配無糖茶；或：超商雞胸沙拉加一顆茶葉蛋"></textarea></div>
+                <div class="actions"><button type="button" id="estimateAiBtn">AI 估算</button><button type="button" class="ghost" id="clearAiBtn">清空</button></div>
+                <div id="aiResult" class="ai-result"></div>
+              </div>
+            </div>
+            <form id="mealForm" class="section-gap">
+              <div><label>餐點名稱</label><input id="mealName" placeholder="例如：火鍋、小酌、自訂餐點" required /></div>
+              <div class="form-row">
+                <div><label>餐別</label><select id="mealType"><option>早餐</option><option selected>午餐</option><option>晚餐</option><option>點心</option><option>酒精</option></select></div>
+                <div><label>份量倍數</label><input id="serving" type="number" step="0.1" min="0" value="1" /></div>
+              </div>
+              <div class="form-row">
+                <div><label>熱量 kcal（自動計算）</label><input id="calories" type="number" min="0" step="0.1" value="0" /></div>
+                <div><label>蛋白質 g</label><input id="protein" type="number" min="0" step="0.1" value="0" /></div>
+              </div>
+              <div class="form-row">
+                <div><label>碳水 g</label><input id="carbs" type="number" min="0" step="0.1" value="0" /></div>
+                <div><label>脂肪 g</label><input id="fat" type="number" min="0" step="0.1" value="0" /></div>
+              </div>
+              <div><label>來源</label><select id="source"><option>手動輸入</option><option>模板</option></select></div>
+              <div><label>備註</label><textarea id="note" placeholder="例如：炸皮沒吃、醬料偏多、自訂份量說明"></textarea></div>
+              <div class="actions"><button type="submit">新增餐點</button><button type="button" class="secondary" id="resetFormBtn">重設</button></div>
+            </form>
+
+            <div class="section-gap">
+              <div class="template-head">
+                <h2>常用餐點模板</h2>
+                <button type="button" class="collapse-toggle" id="toggleTemplatePanelBtn" aria-expanded="false" aria-controls="templatePanel" aria-label="展開常用餐點模板">▸</button>
+              </div>
+              <div id="templatePanel" class="hidden">
+                <div class="notice">請新增自己的常用餐點。</div>
+                <form id="templateForm" class="section-gap">
+                  <div><label>模板名稱</label><input id="templateName" placeholder="例如：我的早餐組合" required /></div>
+                  <div><label>餐別</label><select id="templateType"><option>早餐</option><option selected>午餐</option><option>晚餐</option><option>點心</option><option>酒精</option></select></div>
+                  <div class="form-row">
+                    <div><label>熱量 kcal（自動計算）</label><input id="templateCalories" type="number" min="0" step="0.1" value="0" /></div>
+                    <div><label>蛋白質 g</label><input id="templateProtein" type="number" min="0" step="0.1" value="0" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div><label>碳水 g</label><input id="templateCarbs" type="number" min="0" step="0.1" value="0" /></div>
+                    <div><label>脂肪 g</label><input id="templateFat" type="number" min="0" step="0.1" value="0" /></div>
+                  </div>
+                  <div class="actions"><button type="submit">新增模板</button><button type="button" class="secondary" id="resetTemplateBtn">清空模板表單</button></div>
+                </form>
+                <div class="template-list section-gap" id="templateList"></div>
+              </div>
+            </div>
+          </div>
           </div>
           <div class="card section-gap">
             <h2 id="mealListTitle">日期餐點</h2>
@@ -195,65 +259,6 @@
           
       </aside></div>
 
-          <div class="card section-gap">
-            <h2>新增餐點</h2>
-            <div class="notice">新增餐點會記錄在目前查看的日期；營養欄位請填 1 份的數值，送出時會依「份量倍數」換算。蛋白質、碳水、脂肪三項填完後，熱量會自動計算。</div>
-            <div class="ai-panel section-gap">
-              <div class="template-head">
-                <div>
-                  <div class="title">AI 餐點估算</div>
-                  <div class="meta">透過 Google Apps Script 代理 Gemini API；估算結果只會帶入下方欄位，不會自動寫入 Firebase。</div>
-                </div>
-                <button type="button" class="collapse-toggle" id="toggleAiPanelBtn" aria-expanded="false" aria-controls="aiInputPanel" aria-label="展開 AI 估算">▸</button>
-              </div>
-              <div id="aiInputPanel" class="section-gap hidden">
-                <div><label>餐點描述</label><textarea id="aiMealText" placeholder="例如：雞腿便當飯半碗、炸皮沒吃，配無糖茶；或：超商雞胸沙拉加一顆茶葉蛋"></textarea></div>
-                <div class="actions"><button type="button" id="estimateAiBtn">AI 估算</button><button type="button" class="ghost" id="clearAiBtn">清空</button></div>
-                <div id="aiResult" class="ai-result"></div>
-              </div>
-            </div>
-            <form id="mealForm" class="section-gap">
-              <div><label>餐點名稱</label><input id="mealName" placeholder="例如：火鍋、小酌、自訂餐點" required /></div>
-              <div class="form-row">
-                <div><label>餐別</label><select id="mealType"><option>早餐</option><option selected>午餐</option><option>晚餐</option><option>點心</option><option>酒精</option></select></div>
-                <div><label>份量倍數</label><input id="serving" type="number" step="0.1" min="0" value="1" /></div>
-              </div>
-              <div class="form-row">
-                <div><label>熱量 kcal（自動計算）</label><input id="calories" type="number" min="0" step="0.1" value="0" /></div>
-                <div><label>蛋白質 g</label><input id="protein" type="number" min="0" step="0.1" value="0" /></div>
-              </div>
-              <div class="form-row">
-                <div><label>碳水 g</label><input id="carbs" type="number" min="0" step="0.1" value="0" /></div>
-                <div><label>脂肪 g</label><input id="fat" type="number" min="0" step="0.1" value="0" /></div>
-              </div>
-              <div><label>來源</label><select id="source"><option>手動輸入</option><option>模板</option></select></div>
-              <div><label>備註</label><textarea id="note" placeholder="例如：炸皮沒吃、醬料偏多、自訂份量說明"></textarea></div>
-              <div class="actions"><button type="submit">新增餐點</button><button type="button" class="secondary" id="resetFormBtn">重設</button></div>
-            </form>
-            <div class="section-gap">
-              <div class="template-head">
-                <h2>常用餐點模板</h2>
-                <button type="button" class="collapse-toggle" id="toggleTemplatePanelBtn" aria-expanded="false" aria-controls="templatePanel" aria-label="展開常用餐點模板">▸</button>
-              </div>
-              <div id="templatePanel" class="hidden">
-                <div class="notice">請新增自己的常用餐點。</div>
-                <form id="templateForm" class="section-gap">
-                  <div><label>模板名稱</label><input id="templateName" placeholder="例如：我的早餐組合" required /></div>
-                  <div><label>餐別</label><select id="templateType"><option>早餐</option><option selected>午餐</option><option>晚餐</option><option>點心</option><option>酒精</option></select></div>
-                  <div class="form-row">
-                    <div><label>熱量 kcal（自動計算）</label><input id="templateCalories" type="number" min="0" step="0.1" value="0" /></div>
-                    <div><label>蛋白質 g</label><input id="templateProtein" type="number" min="0" step="0.1" value="0" /></div>
-                  </div>
-                  <div class="form-row">
-                    <div><label>碳水 g</label><input id="templateCarbs" type="number" min="0" step="0.1" value="0" /></div>
-                    <div><label>脂肪 g</label><input id="templateFat" type="number" min="0" step="0.1" value="0" /></div>
-                  </div>
-                  <div class="actions"><button type="submit">新增模板</button><button type="button" class="secondary" id="resetTemplateBtn">清空模板表單</button></div>
-                </form>
-                <div class="template-list section-gap" id="templateList"></div>
-              </div>
-            </div>
-          </div>
 
         </div>
       </section>
