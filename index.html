@@ -46,6 +46,8 @@
     button:hover{transform:translateY(-1px)}
     button.secondary{background:#fff;color:var(--accent);border:1px solid var(--line)}
     button.ghost{background:transparent;color:var(--muted);padding-inline:8px}
+    .collapse-toggle{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;width:30px;height:30px;padding:0;font-size:12px;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+    .collapse-toggle[aria-expanded="true"]{color:var(--accent)}
     .template-list,.meal-list{display:grid;gap:10px}
     .date-picker{display:flex;gap:8px;align-items:center;background:rgba(255,255,255,.8);border:1px solid var(--line);border-radius:999px;padding:7px 10px 7px 14px;color:var(--muted);font-size:14px}
     .date-picker input{width:auto;min-width:145px;border:0;background:transparent;padding:3px;color:var(--text);box-shadow:none}
@@ -153,7 +155,7 @@
                   <div class="title">AI 餐點估算</div>
                   <div class="meta">透過 Google Apps Script 代理 Gemini API；估算結果只會帶入下方欄位，不會自動寫入 Firebase。</div>
                 </div>
-                <button type="button" class="secondary" id="toggleAiPanelBtn">AI估算</button>
+                <button type="button" class="collapse-toggle" id="toggleAiPanelBtn" aria-expanded="false" aria-controls="aiInputPanel" aria-label="展開 AI 估算">▸</button>
               </div>
               <div id="aiInputPanel" class="section-gap hidden">
                 <div><label>餐點描述</label><textarea id="aiMealText" placeholder="例如：雞腿便當飯半碗、炸皮沒吃，配無糖茶；或：超商雞胸沙拉加一顆茶葉蛋"></textarea></div>
@@ -182,9 +184,13 @@
           </div>
 
           <div class="card section-gap">
-            <h2>常用餐點模板</h2>
-            <div class="notice">請新增自己的常用餐點。</div>
-            <form id="templateForm" class="section-gap">
+            <div class="template-head">
+              <h2>常用餐點模板</h2>
+              <button type="button" class="collapse-toggle" id="toggleTemplatePanelBtn" aria-expanded="false" aria-controls="templatePanel" aria-label="展開常用餐點模板">▸</button>
+            </div>
+            <div id="templatePanel" class="hidden">
+              <div class="notice">請新增自己的常用餐點。</div>
+              <form id="templateForm" class="section-gap">
               <div><label>模板名稱</label><input id="templateName" placeholder="例如：我的早餐組合" required /></div>
               <div><label>餐別</label><select id="templateType"><option>早餐</option><option selected>午餐</option><option>晚餐</option><option>點心</option><option>酒精</option></select></div>
               <div class="form-row">
@@ -198,6 +204,7 @@
               <div class="actions"><button type="submit">新增模板</button><button type="button" class="secondary" id="resetTemplateBtn">清空模板表單</button></div>
             </form>
             <div class="template-list section-gap" id="templateList"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -627,9 +634,25 @@
 
     $('resetFormBtn').addEventListener('click', resetMealForm);
 
+    function togglePanel(buttonId, panelId, onOpen) {
+      const btn = $(buttonId);
+      const panel = $(panelId);
+      const isHidden = panel.classList.toggle('hidden');
+      const expanded = !isHidden;
+      btn.setAttribute('aria-expanded', String(expanded));
+      btn.textContent = expanded ? '▾' : '▸';
+      btn.setAttribute('aria-label', `${expanded ? '收闔' : '展開'}${btn.dataset.label || ''}`);
+      if (expanded && typeof onOpen === 'function') onOpen();
+    }
+
+    $('toggleAiPanelBtn').dataset.label = ' AI 估算';
     $('toggleAiPanelBtn').addEventListener('click', () => {
-      $('aiInputPanel').classList.toggle('hidden');
-      if (!$('aiInputPanel').classList.contains('hidden')) $('aiMealText').focus();
+      togglePanel('toggleAiPanelBtn', 'aiInputPanel', () => $('aiMealText').focus());
+    });
+
+    $('toggleTemplatePanelBtn').dataset.label = ' 常用餐點模板';
+    $('toggleTemplatePanelBtn').addEventListener('click', () => {
+      togglePanel('toggleTemplatePanelBtn', 'templatePanel');
     });
 
     $('estimateAiBtn').addEventListener('click', estimateMealWithAi);
