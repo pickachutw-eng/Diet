@@ -111,9 +111,7 @@
             <label for="viewDate">查看日期</label>
             <input id="viewDate" type="date" />
           </div>
-          <div class="chip" id="todayLabel"></div>
-          
-        </div>
+                  </div>
       </header>
 
       <section class="grid">
@@ -144,8 +142,7 @@
           <h2>Mybody</h2>
           <button type="button" class="collapse-toggle" id="toggleMybodyPanelBtn" aria-expanded="true" aria-controls="mybodyPanel" aria-label="收闔 Mybody">▾</button>
         </div>
-        <div class="chip" id="userLabel"></div>
-        <div class="actions section-gap"><button class="secondary" id="logoutBtn" type="button">登出</button></div>
+        <div class="actions"><div class="chip" id="userLabel"></div><button class="secondary" id="logoutBtn" type="button">登出</button></div>
         <div id="mybodyPanel" class="panel-body stack section-gap">
               
               <div class="recommend-card">
@@ -193,7 +190,7 @@
                   <div><label>碳水 g</label><input type="number" id="targetCarbs" /></div>
                   <div><label>脂肪 g</label><input type="number" id="targetFat" /></div>
                 </div>
-                <div class="actions"><button id="saveTargetsBtn" type="button">儲存目標</button></div>
+                <div class="actions section-gap"><button id="saveTargetsBtn" type="button">儲存目標</button></div>
               </div> </div>
           
       </aside></div>
@@ -233,31 +230,31 @@
               <div><label>備註</label><textarea id="note" placeholder="例如：炸皮沒吃、醬料偏多、自訂份量說明"></textarea></div>
               <div class="actions"><button type="submit">新增餐點</button><button type="button" class="secondary" id="resetFormBtn">重設</button></div>
             </form>
+            <div class="section-gap">
+              <div class="template-head">
+                <h2>常用餐點模板</h2>
+                <button type="button" class="collapse-toggle" id="toggleTemplatePanelBtn" aria-expanded="false" aria-controls="templatePanel" aria-label="展開常用餐點模板">▸</button>
+              </div>
+              <div id="templatePanel" class="hidden">
+                <div class="notice">請新增自己的常用餐點。</div>
+                <form id="templateForm" class="section-gap">
+                  <div><label>模板名稱</label><input id="templateName" placeholder="例如：我的早餐組合" required /></div>
+                  <div><label>餐別</label><select id="templateType"><option>早餐</option><option selected>午餐</option><option>晚餐</option><option>點心</option><option>酒精</option></select></div>
+                  <div class="form-row">
+                    <div><label>熱量 kcal（自動計算）</label><input id="templateCalories" type="number" min="0" step="0.1" value="0" /></div>
+                    <div><label>蛋白質 g</label><input id="templateProtein" type="number" min="0" step="0.1" value="0" /></div>
+                  </div>
+                  <div class="form-row">
+                    <div><label>碳水 g</label><input id="templateCarbs" type="number" min="0" step="0.1" value="0" /></div>
+                    <div><label>脂肪 g</label><input id="templateFat" type="number" min="0" step="0.1" value="0" /></div>
+                  </div>
+                  <div class="actions"><button type="submit">新增模板</button><button type="button" class="secondary" id="resetTemplateBtn">清空模板表單</button></div>
+                </form>
+                <div class="template-list section-gap" id="templateList"></div>
+              </div>
+            </div>
           </div>
 
-          <div class="card section-gap">
-            <div class="template-head">
-              <h2>常用餐點模板</h2>
-              <button type="button" class="collapse-toggle" id="toggleTemplatePanelBtn" aria-expanded="false" aria-controls="templatePanel" aria-label="展開常用餐點模板">▸</button>
-            </div>
-            <div id="templatePanel" class="hidden">
-              <div class="notice">請新增自己的常用餐點。</div>
-              <form id="templateForm" class="section-gap">
-              <div><label>模板名稱</label><input id="templateName" placeholder="例如：我的早餐組合" required /></div>
-              <div><label>餐別</label><select id="templateType"><option>早餐</option><option selected>午餐</option><option>晚餐</option><option>點心</option><option>酒精</option></select></div>
-              <div class="form-row">
-                <div><label>熱量 kcal（自動計算）</label><input id="templateCalories" type="number" min="0" step="0.1" value="0" /></div>
-                <div><label>蛋白質 g</label><input id="templateProtein" type="number" min="0" step="0.1" value="0" /></div>
-              </div>
-              <div class="form-row">
-                <div><label>碳水 g</label><input id="templateCarbs" type="number" min="0" step="0.1" value="0" /></div>
-                <div><label>脂肪 g</label><input id="templateFat" type="number" min="0" step="0.1" value="0" /></div>
-              </div>
-              <div class="actions"><button type="submit">新增模板</button><button type="button" class="secondary" id="resetTemplateBtn">清空模板表單</button></div>
-            </form>
-            <div class="template-list section-gap" id="templateList"></div>
-            </div>
-          </div>
         </div>
       </section>
     </section>
@@ -643,7 +640,6 @@
 
     function renderAll() {
       $('viewDate').value = selectedDate;
-      $('todayLabel').textContent = `目前查看：${dayLabel(selectedDate)}`;
       $('summaryTitle').textContent = `${dayLabel(selectedDate)} 總覽`;
       $('remainingTitle').textContent = `${dayLabel(selectedDate)} 剩餘營養額度`;
       $('mealListTitle').textContent = `${dayLabel(selectedDate)} 餐點`;
