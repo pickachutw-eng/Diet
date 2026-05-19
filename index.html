@@ -228,7 +228,7 @@
 
     // TODO: 部署 Google Apps Script Web App 後，將 /exec URL 貼到這裡。
     // 前端不保存 Gemini API key；此 URL 只呼叫 Apps Script 代理層。
-    const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz5SoeTLBewvdjQAuMqV7IMSEHkX4JpDCPqApjLB1MpiE_Bylj3xH-f8jnO-rsLjeLmKw/exec';
+    const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwfBmd1eMo8BbQ6IbkwU7k1nlFKyFJ3XC_85bC-rMbDPlzvmEZMgjypy5zQGSxX7F5jYA/exec';
 
     const defaultState = {
       targets:{ calories:2100, protein:130, carbs:220, fat:65 },
@@ -499,7 +499,13 @@
             todayTotals: totals(selectedDate)
           })
         });
-        const data = await response.json();
+        const raw = await response.text();
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch (_) {
+          throw new Error(`Apps Script 回傳非 JSON 內容（HTTP ${response.status}）。請確認 Web App 是否為最新部署版本；若頁面顯示「找不到以下指令碼函式：doGet」，代表你開到舊版部署，請重新部署後更新 /exec URL。`);
+        }
         if (!response.ok || data.ok === false) {
           throw new Error(data.error || `Apps Script 回傳錯誤（HTTP ${response.status}）`);
         }
@@ -517,7 +523,12 @@
           ${warnings}
         `);
       } catch (err) {
-        setAiResult(`AI 估算失敗：${esc(err.message)}`, 'error');
+        const msg = String(err && err.message ? err.message : err);
+        if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+          setAiResult(`AI 估算失敗：無法連線到 Apps Script Web App。<br>請確認：<ul><li>部署類型是 Web app，且使用 <code>/exec</code> 正式網址（不要用 editor 測試網址）。</li><li>誰可存取設為 <strong>Anyone</strong>（或至少 Anyone with Google account）。</li><li>你已在 Apps Script 重新部署最新版本，且 <code>APPS_SCRIPT_WEB_APP_URL</code> 與部署網址完全一致。</li><li>網址可直接在瀏覽器開啟（應看到 JSON 回應，而不是權限頁或 404）。</li></ul>原始錯誤：${esc(msg)}`, 'error');
+        } else {
+          setAiResult(`AI 估算失敗：${esc(msg)}`, 'error');
+        }
       } finally {
         btn.disabled = false;
         btn.textContent = 'AI 估算';
