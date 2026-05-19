@@ -77,8 +77,10 @@
     .status.error{background:#f3ddd7;color:var(--danger)}
     .empty{color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:18px;background:rgba(255,255,255,.55);text-align:center;font-size:14px}
     .section-gap{margin-top:18px}.hidden{display:none!important}
-    .panel-side{position:relative}
-    .panel-side .panel-toggle{position:absolute;top:20px;right:20px;z-index:2}
+    .panel-trigger{position:fixed;right:18px;top:18px;z-index:20;box-shadow:var(--shadow)}
+    .mybody-drawer{position:fixed;top:0;right:0;height:100vh;width:min(520px,92vw);background:rgba(255,250,245,.98);border-left:1px solid var(--line);box-shadow:var(--shadow);z-index:30;transform:translateX(100%);transition:transform .22s ease;overflow:auto;padding:18px 18px 26px}
+    .mybody-drawer.open{transform:translateX(0)}
+    .drawer-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
     .panel-side .panel-body.hidden{display:none!important}
     .recommend-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:13px}
     .recommend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
@@ -110,8 +112,7 @@
             <input id="viewDate" type="date" />
           </div>
           <div class="chip" id="todayLabel"></div>
-          <div class="chip" id="userLabel"></div>
-          <button class="secondary" id="logoutBtn" type="button">登出</button>
+          
         </div>
       </header>
 
@@ -137,10 +138,15 @@
         </div>
 
         <div>
-          <div class="card panel-side">
-            <button type="button" class="collapse-toggle panel-toggle" id="toggleMybodyPanelBtn" aria-expanded="true" aria-controls="mybodyPanel" aria-label="收闔 Mybody">▾</button>
-            <h2>Mybody</h2>
-            <div id="mybodyPanel" class="panel-body stack">
+            <button type="button" class="panel-trigger" id="openMybodyDrawerBtn">Mybody</button>
+      <aside class="mybody-drawer" id="mybodyDrawer" aria-hidden="true">
+        <div class="drawer-head">
+          <h2>Mybody</h2>
+          <button type="button" class="collapse-toggle" id="toggleMybodyPanelBtn" aria-expanded="true" aria-controls="mybodyPanel" aria-label="收闔 Mybody">▾</button>
+        </div>
+        <div class="chip" id="userLabel"></div>
+        <div class="actions section-gap"><button class="secondary" id="logoutBtn" type="button">登出</button></div>
+        <div id="mybodyPanel" class="panel-body stack section-gap">
               <div>
                 <div class="title">每日目標</div>
                 <div class="form-row section-gap">
@@ -188,7 +194,8 @@
               <div class="actions"><button type="button" id="generateRecommendationBtn">產生熱量建議</button><button type="button" class="secondary" id="applyRecommendationBtn">套用為每日目標</button></div>
               <div id="recommendationResult" class="notice">尚未產生建議。</div>
             </div>
-          </div>
+          
+      </aside></div>
 
           <div class="card section-gap">
             <h2>新增餐點</h2>
@@ -769,7 +776,16 @@
 
     
     $('toggleMybodyPanelBtn').dataset.label = ' Mybody';
-    $('toggleMybodyPanelBtn').addEventListener('click', () => togglePanel('toggleMybodyPanelBtn', 'mybodyPanel'));
+    $('toggleMybodyPanelBtn').addEventListener('click', () => {
+      $('mybodyDrawer').classList.remove('open');
+      $('mybodyDrawer').setAttribute('aria-hidden','true');
+    });
+    $('openMybodyDrawerBtn').addEventListener('click', () => {
+      const drawer = $('mybodyDrawer');
+      const isOpen = drawer.classList.contains('open');
+      drawer.classList.toggle('open', !isOpen);
+      drawer.setAttribute('aria-hidden', isOpen ? 'true' : 'false');
+    });
 
     function collectMybodyInput(){
       return {
