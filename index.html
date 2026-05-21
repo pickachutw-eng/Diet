@@ -823,7 +823,9 @@
 
     $('profileBirthDate').addEventListener('blur', () => {
       const input = $('profileBirthDate');
-      const selected = input.value || input.dataset.birthDate || '';
+      const selected = input.type === 'date'
+        ? (input.value || input.dataset.birthDate || '')
+        : (input.dataset.birthDate || '');
       setBirthDateFieldDisplay(selected);
     });
 
