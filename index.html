@@ -87,6 +87,7 @@
     .recommend-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:13px}
     .recommend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     .strategy{font-size:13px;color:var(--muted);line-height:1.6}
+    .ai-title-row{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;white-space:nowrap}
     @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row,.recommend-grid{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}.date-picker{border-radius:18px;align-items:flex-start;flex-direction:column}.date-picker input{width:100%}}
   </style>
 </head>
@@ -165,7 +166,7 @@
             </form>
             <div class="ai-panel section-gap">
               <div class="template-head">
-                <div class="actions">
+                <div class="actions ai-title-row">
                   <button type="button" class="secondary" id="uploadNutritionBtn" aria-label="上傳營養成分表快照">＋</button>
                   <div>
                     <div class="title">AI 餐點估算</div>
@@ -702,6 +703,8 @@
           body: JSON.stringify({
             idToken,
             mode: 'nutrition_label_image',
+            imageMode: true,
+            text: 'nutrition label image parsing request',
             imageDataUrl
           })
         });
