@@ -129,6 +129,10 @@
 
           <div class="card section-gap">
             <h2 id="mealListTitle">日期餐點</h2>
+            <div class="mode-tabs">
+              <button type="button" class="secondary active" id="foodListModeBtn">飲食</button>
+              <button type="button" class="secondary" id="activityListModeBtn">運動</button>
+            </div>
             <div class="meal-list" id="mealList"></div>
             <div class="actions section-gap"><button class="secondary" id="clearTodayBtn" type="button">清空所選日期餐點</button></div>
           </div>
@@ -524,6 +528,21 @@
           <div class="pill-row"><span class="pill">來源：${m.source}</span><span class="pill">份量：${m.serving}x</span></div>
         </div>`).join('') : '<div class="empty">所選日期還沒有餐點紀錄。</div>';
     }
+    function renderActivities() {
+      const items = (state.activities || []).filter(a => a.date === selectedDate).sort((a,b) => String(b.id).localeCompare(String(a.id)));
+      $('mealList').innerHTML = items.length ? items.map(a => `
+        <div class="meal-card">
+          <div class="meal-head">
+            <div>
+              <div class="title">${esc(a.name)}</div>
+              <div class="meta">${esc(a.type)}｜${round(a.minutes)} 分鐘｜消耗 ${round(a.calories)} kcal</div>
+              ${a.note ? `<div class="meta">備註：${esc(a.note)}</div>` : ''}
+            </div>
+            <button class="ghost" data-delete-activity="${a.id}">刪除</button>
+          </div>
+          <div class="pill-row"><span class="pill">體重：${a.weight ? `${round(a.weight)} kg` : '未填寫'}</span></div>
+        </div>`).join('') : '<div class="empty">所選日期還沒有運動紀錄。</div>';
+    }
 
     function dayLabel(date) {
       return date === todayISO() ? `${date}（今天）` : date;
@@ -722,16 +741,26 @@
       $('templateFat').value = 0;
     }
 
+    let currentListMode = 'food';
+    function setListMode(mode) {
+      currentListMode = mode;
+      $('foodListModeBtn').classList.toggle('active', mode === 'food');
+      $('activityListModeBtn').classList.toggle('active', mode === 'activity');
+      $('clearTodayBtn').textContent = mode === 'food' ? '清空所選日期餐點' : '清空所選日期運動';
+      $('mealListTitle').textContent = `${dayLabel(selectedDate)} ${mode === 'food' ? '餐點' : '運動'}`;
+      if (mode === 'food') renderMeals();
+      else renderActivities();
+    }
+
     function renderAll() {
       $('viewDate').value = selectedDate;
       $('summaryTitle').textContent = `${dayLabel(selectedDate)} 總覽`;
       $('remainingTitle').textContent = `${dayLabel(selectedDate)} 剩餘營養額度`;
-      $('mealListTitle').textContent = `${dayLabel(selectedDate)} 餐點`;
       $('userLabel').textContent = currentUser?.email || currentUser?.displayName || '';
       renderTargets();
       renderMybody();
       renderSummary();
-      renderMeals();
+      setListMode(currentListMode);
       renderTemplates();
       renderDailyStats();
       renderActivityOptions();
@@ -767,6 +796,11 @@
 
     async function deleteMeal(id) {
       state.meals = state.meals.filter(m => String(m.id) !== String(id));
+      await saveCloud();
+      renderAll();
+    }
+    async function deleteActivity(id) {
+      state.activities = (state.activities || []).filter(a => String(a.id) !== String(id));
       await saveCloud();
       renderAll();
     }
@@ -807,6 +841,8 @@
     });
 
     $('resetFormBtn').addEventListener('click', resetMealForm);
+    $('foodListModeBtn').addEventListener('click', () => setListMode('food'));
+    $('activityListModeBtn').addEventListener('click', () => setListMode('activity'));
     $('mealModeBtn').addEventListener('click', () => setEntryMode('meal'));
     $('activityModeBtn').addEventListener('click', () => setEntryMode('activity'));
     $('activityType').addEventListener('change', renderActivityOptions);
@@ -961,8 +997,10 @@
     });
 
     $('clearTodayBtn').addEventListener('click', async () => {
-      if (!confirm(`確定要清空 ${selectedDate} 的所有餐點？`)) return;
-      state.meals = state.meals.filter(m => m.date !== selectedDate);
+      const isFood = currentListMode === 'food';
+      if (!confirm(`確定要清空 ${selectedDate} 的所有${isFood ? '餐點' : '運動'}？`)) return;
+      if (isFood) state.meals = state.meals.filter(m => m.date !== selectedDate);
+      else state.activities = (state.activities || []).filter(a => a.date !== selectedDate);
       await saveCloud();
       renderAll();
     });
@@ -987,9 +1025,11 @@
 
     $('mealList').addEventListener('click', e => {
       if (e.target.dataset.deleteMeal) deleteMeal(e.target.dataset.deleteMeal);
+      if (e.target.dataset.deleteActivity) deleteActivity(e.target.dataset.deleteActivity);
     });
     resetActivityForm();
     setEntryMode('meal');
+    setListMode('food');
 
     onAuthStateChanged(auth, user => {
       currentUser = user;
