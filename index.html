@@ -165,15 +165,18 @@
             </form>
             <div class="ai-panel section-gap">
               <div class="template-head">
-                <div>
-                  <div class="title">AI 餐點估算</div>
-                  <div class="meta">透過 Google Apps Script 代理 Gemini API；估算結果只會帶入下方欄位，不會自動寫入 Firebase。</div>
+                <div class="actions">
+                  <button type="button" class="secondary" id="uploadNutritionBtn" aria-label="上傳營養成分表快照">＋</button>
+                  <div>
+                    <div class="title">AI 餐點估算</div>
+                    <div class="meta">透過 Google Apps Script 代理 Gemini API；估算結果只會帶入下方欄位，不會自動寫入 Firebase。</div>
+                  </div>
                 </div>
                 <button type="button" class="collapse-toggle" id="toggleAiPanelBtn" aria-expanded="false" aria-controls="aiInputPanel" aria-label="展開 AI 估算">▸</button>
               </div>
               <div id="aiInputPanel" class="section-gap hidden">
                 <div><label>餐點描述</label><textarea id="aiMealText" placeholder="例如：雞腿便當飯半碗、炸皮沒吃，配無糖茶；或：超商雞胸沙拉加一顆茶葉蛋"></textarea></div>
-                <div class="actions"><button type="button" class="secondary" id="uploadNutritionBtn" aria-label="上傳營養成分表快照">＋</button><button type="button" id="estimateAiBtn">AI 估算</button><input id="nutritionImageInput" type="file" accept="image/*" class="hidden" /><button type="button" class="ghost" id="clearAiBtn">清空</button></div>
+                <div class="actions"><button type="button" id="estimateAiBtn">AI 估算</button><input id="nutritionImageInput" type="file" accept="image/*" class="hidden" /><button type="button" class="ghost" id="clearAiBtn">清空</button></div>
                 <div id="aiResult" class="ai-result"></div>
               </div>
             </div>

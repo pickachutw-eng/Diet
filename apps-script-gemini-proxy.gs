@@ -184,13 +184,13 @@ function parseDataUrl_(dataUrl) {
 
 function buildNutritionLabelPrompt_() {
   return [
-    '你是營養標示 OCR 與欄位轉換助手，不是餐點描述估算助手。',
-    '請只根據圖片中的商品營養成分表（Nutrition Facts / 營養標示）擷取數值。',
-    '若同時有每份與每100公克（或每100毫升），優先回傳每份（per serving）。',
-    '若標示為每100公克且沒有每份，則用每100公克數值回傳，並把 name 加註「（每100g）」；液體則用「（每100ml）」。',
+    '你是營養標示 OCR 助手。',
+    '請只根據圖片中的「每份」營養資訊回傳。',
+    '若圖片沒有清楚標示每份（per serving）數值，請仍估算最接近的每份數值後回傳。',
+    '忽略每100g、每100ml 等資訊，不要在結果或名稱中提及。',
     '只回傳 JSON，欄位固定：name, calories, protein, carbs, fat。',
     '單位：calories 使用 kcal；protein/carbs/fat 使用 g；數值必須為非負數。',
-    '看不清楚時請回傳最合理近似值，不可留空、不可輸出 markdown。'
+    '不可輸出 markdown、不可輸出額外文字。'
   ].join('\n');
 }
 
