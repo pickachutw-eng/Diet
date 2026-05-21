@@ -49,6 +49,8 @@
     .collapse-toggle{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;width:30px;height:30px;padding:0;font-size:12px;display:inline-flex;align-items:center;justify-content:center;line-height:1}
     .collapse-toggle[aria-expanded="true"]{color:var(--accent)}
     .template-list,.meal-list{display:grid;gap:10px}
+    .mode-tabs{display:flex;gap:8px;margin-top:10px}
+    .mode-tabs button.active{background:var(--accent);color:#fff}
     .date-picker{display:flex;gap:8px;align-items:center;background:rgba(255,255,255,.8);border:1px solid var(--line);border-radius:999px;padding:7px 10px 7px 14px;color:var(--muted);font-size:14px}
     .date-picker input{width:auto;min-width:145px;border:0;background:transparent;padding:3px;color:var(--text);box-shadow:none}
     .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:18px;background:#fff}
@@ -139,8 +141,26 @@
 
         <div>
           <div class="card">
-            <h2>新增餐點</h2>
+            <h2 id="entryTitle">新增餐點</h2>
+            <div class="mode-tabs">
+              <button type="button" class="secondary active" id="mealModeBtn">新增餐點</button>
+              <button type="button" class="secondary" id="activityModeBtn">新增運動</button>
+            </div>
             <div class="notice">新增餐點會記錄在目前查看的日期；營養欄位請填 1 份的數值，送出時會依「份量倍數」換算。蛋白質、碳水、脂肪三項填完後，熱量會自動計算。</div>
+            <div class="notice hidden" id="activityNotice">新增運動會記錄在目前查看日期，依運動類型提供預設項目，並計算消耗熱量，會自動加總到當日熱量目標。</div>
+            <form id="activityForm" class="section-gap hidden">
+              <div class="form-row">
+                <div><label>活動類型</label><select id="activityType"><option value="cardio">有氧</option><option value="strength">重訓</option><option value="daily">日常活動</option></select></div>
+                <div><label>活動項目</label><select id="activityName"></select></div>
+              </div>
+              <div class="form-row">
+                <div><label>時間（分鐘）</label><input id="activityMinutes" type="number" min="1" step="1" value="30" /></div>
+                <div><label>體重（kg）</label><input id="activityWeight" type="number" min="30" step="0.1" placeholder="留空則取最新 InBody 體重" /></div>
+              </div>
+              <div><label>消耗熱量 kcal（自動計算）</label><input id="activityCalories" type="number" min="0" step="0.1" value="0" /></div>
+              <div><label>備註</label><textarea id="activityNote" placeholder="例如：含暖身 10 分鐘"></textarea></div>
+              <div class="actions"><button type="submit">新增運動</button><button type="button" class="secondary" id="resetActivityBtn">重設</button></div>
+            </form>
             <div class="ai-panel section-gap">
               <div class="template-head">
                 <div>
@@ -217,7 +237,6 @@
                   <div><label>活動量</label><select id="profileActivity"><option value="sedentary">久坐</option><option value="light">輕度活動</option><option value="moderate">中度活動</option><option value="active">高活動</option><option value="very_active">非常高活動</option></select></div>
                 </div>
                 <div class="form-row">
-                  <div><label>每週運動次數</label><input type="number" id="profileExerciseFreq" min="0" max="14" /></div>
                   <div><label>主要目標</label><select id="profileGoal"><option value="fat_loss">減脂</option><option value="maintain">維持</option><option value="recomposition">體態重組</option><option value="muscle_gain">增肌</option></select></div>
                 </div>
                 <div><label>速度</label><select id="profilePace"><option value="conservative">保守</option><option value="standard">標準</option><option value="aggressive">積極</option></select></div>
@@ -292,7 +311,8 @@
       updatedAt:null,
       profile:null,
       inbodyRecords:[],
-      recommendations:[]
+      recommendations:[],
+      activities:[]
     };
 
     let state = structuredClone(defaultState);
@@ -317,6 +337,11 @@
     const metricLabel = k => ({calories:'熱量',protein:'蛋白質',carbs:'碳水',fat:'脂肪'}[k]);
     const unit = k => k === 'calories' ? 'kcal' : 'g';
     const nutrientCalories = (protein, carbs, fat) => round((Number(protein) || 0) * 4 + (Number(carbs) || 0) * 4 + (Number(fat) || 0) * 9);
+    const activityOptions = {
+      cardio:[{name:'慢跑（8 km/h）', met:8.3},{name:'快走（6 km/h）', met:4.8},{name:'室內單車（中等）', met:7.0},{name:'游泳（自由式）', met:8.0}],
+      strength:[{name:'重量訓練（一般）', met:5.0},{name:'重量訓練（高強度）', met:6.0},{name:'壺鈴循環', met:8.0}],
+      daily:[{name:'家務清潔', met:3.5},{name:'通勤步行', met:3.8},{name:'爬樓梯', met:8.8}]
+    };
     const hasAllNutrition = ids => ids.every(id => $(id).value !== '');
     const mealsForDate = date => state.meals.filter(m => m.date === date);
     const selectedMeals = () => mealsForDate(selectedDate);
@@ -349,7 +374,8 @@
         templates,
         profile: { ...(data.profile || {}) },
         inbodyRecords: Array.isArray(data.inbodyRecords) ? data.inbodyRecords : [],
-        recommendations: Array.isArray(data.recommendations) ? data.recommendations : []
+        recommendations: Array.isArray(data.recommendations) ? data.recommendations : [],
+        activities: Array.isArray(data.activities) ? data.activities : []
       };
     }
 
@@ -430,6 +456,10 @@
       isSaving = false;
     }
 
+    function burnedCalories(date = selectedDate) {
+      return round((state.activities || []).filter(a => a.date === date).reduce((sum, a) => sum + (Number(a.calories) || 0), 0));
+    }
+
     function totals(date = selectedDate) {
       return mealsForDate(date).reduce((a, m) => {
         a.calories += Number(m.calories) || 0;
@@ -442,18 +472,23 @@
 
     function renderSummary() {
       const t = totals();
+      const burned = burnedCalories();
       const keys = ['calories','protein','carbs','fat'];
       $('summaryGrid').innerHTML = keys.map(k => {
-        const target = Number(state.targets[k]) || 0;
+        const baseTarget = Number(state.targets[k]) || 0;
+        const target = k === 'calories' ? round(baseTarget + burned) : baseTarget;
         const used = round(t[k]);
         const pct = target > 0 ? Math.min(100, used / target * 100) : 0;
         return `<div class="metric"><div class="metric-label"><span>${metricLabel(k)}</span><span>${Math.round(pct)}%</span></div><div class="metric-main">${used}<small> / ${target} ${unit(k)}</small></div><div class="bar"><span style="width:${pct}%"></span></div></div>`;
       }).join('');
 
       $('remainingGrid').innerHTML = keys.map(k => {
-        const remain = round((Number(state.targets[k]) || 0) - t[k]);
+        const baseTarget = Number(state.targets[k]) || 0;
+        const target = k === 'calories' ? round(baseTarget + burned) : baseTarget;
+        const remain = round(target - t[k]);
         return `<div class="remain-item ${remain < 0 ? 'negative' : ''}"><div class="label">剩餘${metricLabel(k)}</div><div class="value">${remain}<small> ${unit(k)}</small></div></div>`;
       }).join('');
+      $('summaryNotice').textContent = `已加總運動消耗 ${burned} kcal；今日熱量目標 = 基礎目標 + 消耗熱量。`;
     }
 
     function renderTargets() {
@@ -465,7 +500,7 @@
     function renderMybody(){
       const p = state.profile || {};
       $('profileGender').value = p.gender || 'female'; setBirthDateFieldDisplay(p.birthDate || ''); $('profileHeight').value = p.height || '';
-      $('profileActivity').value = p.activity || 'light'; $('profileExerciseFreq').value = p.exerciseFreq ?? '';
+      $('profileActivity').value = p.activity || 'light';
       $('profileGoal').value = p.goal || 'fat_loss'; $('profilePace').value = p.pace || 'standard';
       const latest = (state.inbodyRecords||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0] || {};
       $('inbodyDate').value = latest.date || todayISO(); $('inbodyWeight').value = latest.weight || ''; $('inbodyBodyFat').value = latest.bodyFat || '';
@@ -518,7 +553,7 @@
           </thead>
           <tbody>
             ${rows.map(day => {
-              const targetCalories = Number(state.targets.calories) || 0;
+              const targetCalories = round((Number(state.targets.calories) || 0) + burnedCalories(day.date));
               const pct = targetCalories > 0 ? Math.round((day.calories / targetCalories) * 100) : 0;
               return `<tr>
                 <td>${day.date === selectedDate ? '<strong>' + esc(dayLabel(day.date)) + '</strong>' : esc(dayLabel(day.date))}</td>
@@ -570,6 +605,28 @@
       $('carbs').value = 0;
       $('fat').value = 0;
       $('source').value = '手動輸入';
+    }
+    function renderActivityOptions() {
+      const type = $('activityType').value;
+      const options = activityOptions[type] || [];
+      $('activityName').innerHTML = options.map(o => `<option value="${esc(o.name)}">${esc(o.name)}</option>`).join('');
+      calculateActivityCalories();
+    }
+    function calculateActivityCalories() {
+      const type = $('activityType').value;
+      const name = $('activityName').value;
+      const met = (activityOptions[type] || []).find(o => o.name === name)?.met || 0;
+      const minutes = Number($('activityMinutes').value) || 0;
+      const fallbackWeight = Number((state.inbodyRecords || [])[0]?.weight) || 60;
+      const weight = Number($('activityWeight').value) || fallbackWeight;
+      $('activityCalories').value = round(met * 3.5 * weight / 200 * minutes);
+    }
+    function resetActivityForm() {
+      $('activityType').value = 'cardio';
+      $('activityMinutes').value = 30;
+      $('activityWeight').value = '';
+      $('activityNote').value = '';
+      renderActivityOptions();
     }
 
     function fillMealFormFromAi(estimate) {
@@ -677,6 +734,8 @@
       renderMeals();
       renderTemplates();
       renderDailyStats();
+      renderActivityOptions();
+      setEntryMode(currentEntryMode);
     }
 
     function fillFromTemplate(id) {
@@ -748,6 +807,27 @@
     });
 
     $('resetFormBtn').addEventListener('click', resetMealForm);
+    $('mealModeBtn').addEventListener('click', () => setEntryMode('meal'));
+    $('activityModeBtn').addEventListener('click', () => setEntryMode('activity'));
+    $('activityType').addEventListener('change', renderActivityOptions);
+    $('activityName').addEventListener('change', calculateActivityCalories);
+    $('activityMinutes').addEventListener('input', calculateActivityCalories);
+    $('activityWeight').addEventListener('input', calculateActivityCalories);
+    $('resetActivityBtn').addEventListener('click', resetActivityForm);
+    $('activityForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const calories = round($('activityCalories').value);
+      const item = {
+        id:`act_${idNow()}`, date:selectedDate, type:$('activityType').value, name:$('activityName').value,
+        minutes:Number($('activityMinutes').value) || 0, weight:Number($('activityWeight').value) || null,
+        calories, note:$('activityNote').value.trim()
+      };
+      if (!item.name || item.minutes <= 0 || calories <= 0) return;
+      state.activities.push(item);
+      await saveCloud();
+      resetActivityForm();
+      renderAll();
+    });
 
     function togglePanel(buttonId, panelId, onOpen) {
       const btn = $(buttonId);
@@ -838,9 +918,19 @@
       const birthDate = $('profileBirthDate').dataset.birthDate || '';
       const calculatedAge = calculateAgeFromBirthDate(birthDate);
       return {
-        profile:{ gender:$('profileGender').value, birthDate, age:calculatedAge, height:Number($('profileHeight').value), activity:$('profileActivity').value, exerciseFreq:Number($('profileExerciseFreq').value), goal:$('profileGoal').value, pace:$('profilePace').value },
+        profile:{ gender:$('profileGender').value, birthDate, age:calculatedAge, height:Number($('profileHeight').value), activity:$('profileActivity').value, goal:$('profileGoal').value, pace:$('profilePace').value },
         inbody:{ date:$('inbodyDate').value || todayISO(), weight:Number($('inbodyWeight').value), bodyFat:Number($('inbodyBodyFat').value), smm:Number($('inbodySmm').value), bmr:Number($('inbodyBmr').value), visceralFat:Number($('inbodyVisceralFat').value)||null, whr:Number($('inbodyWhr').value)||null }
       };
+    }
+    let currentEntryMode = 'meal';
+    function setEntryMode(mode) {
+      currentEntryMode = mode;
+      $('entryTitle').textContent = mode === 'meal' ? '新增餐點' : '新增運動';
+      $('mealForm').classList.toggle('hidden', mode !== 'meal');
+      $('activityForm').classList.toggle('hidden', mode !== 'activity');
+      $('activityNotice').classList.toggle('hidden', mode !== 'activity');
+      $('mealModeBtn').classList.toggle('active', mode === 'meal');
+      $('activityModeBtn').classList.toggle('active', mode === 'activity');
     }
 
     $('generateRecommendationBtn').addEventListener('click', async ()=>{
@@ -898,6 +988,8 @@
     $('mealList').addEventListener('click', e => {
       if (e.target.dataset.deleteMeal) deleteMeal(e.target.dataset.deleteMeal);
     });
+    resetActivityForm();
+    setEntryMode('meal');
 
     onAuthStateChanged(auth, user => {
       currentUser = user;
