@@ -134,7 +134,6 @@
               <button type="button" class="secondary" id="activityListModeBtn">運動</button>
             </div>
             <div class="meal-list" id="mealList"></div>
-            <div class="actions section-gap"><button class="secondary" id="clearTodayBtn" type="button">清空所選日期餐點</button></div>
           </div>
 
           <div class="card section-gap">
@@ -150,8 +149,6 @@
               <button type="button" class="secondary active" id="mealModeBtn">新增餐點</button>
               <button type="button" class="secondary" id="activityModeBtn">新增運動</button>
             </div>
-            <div class="notice">新增餐點會記錄在目前查看的日期；營養欄位請填 1 份的數值，送出時會依「份量倍數」換算。蛋白質、碳水、脂肪三項填完後，熱量會自動計算。</div>
-            <div class="notice hidden" id="activityNotice">新增運動會記錄在目前查看日期，依運動類型提供預設項目，並計算消耗熱量，會自動加總到當日熱量目標。</div>
             <form id="activityForm" class="section-gap hidden">
               <div class="form-row">
                 <div><label>活動類型</label><select id="activityType"><option value="cardio">有氧</option><option value="strength">重訓</option><option value="daily">日常活動</option></select></div>
@@ -159,7 +156,6 @@
               </div>
               <div class="form-row">
                 <div><label>時間（分鐘）</label><input id="activityMinutes" type="number" min="1" step="1" value="30" /></div>
-                <div><label>體重（kg）</label><input id="activityWeight" type="number" min="30" step="0.1" placeholder="留空則取最新 InBody 體重" /></div>
               </div>
               <div><label>消耗熱量 kcal（自動計算）</label><input id="activityCalories" type="number" min="0" step="0.1" value="0" /></div>
               <div><label>備註</label><textarea id="activityNote" placeholder="例如：含暖身 10 分鐘"></textarea></div>
@@ -342,7 +338,7 @@
     const unit = k => k === 'calories' ? 'kcal' : 'g';
     const nutrientCalories = (protein, carbs, fat) => round((Number(protein) || 0) * 4 + (Number(carbs) || 0) * 4 + (Number(fat) || 0) * 9);
     const activityOptions = {
-      cardio:[{name:'慢跑（8 km/h）', met:8.3},{name:'快走（6 km/h）', met:4.8},{name:'室內單車（中等）', met:7.0},{name:'游泳（自由式）', met:8.0}],
+      cardio:[{name:'慢跑（8 km/h）', met:8.3},{name:'快走（6 km/h）', met:4.8},{name:'室內單車（中等）', met:7.0},{name:'游泳（自由式）', met:8.0},{name:'游泳（蛙式）', met:5.3}],
       strength:[{name:'重量訓練（一般）', met:5.0},{name:'重量訓練（高強度）', met:6.0},{name:'壺鈴循環', met:8.0}],
       daily:[{name:'家務清潔', met:3.5},{name:'通勤步行', met:3.8},{name:'爬樓梯', met:8.8}]
     };
@@ -637,13 +633,12 @@
       const met = (activityOptions[type] || []).find(o => o.name === name)?.met || 0;
       const minutes = Number($('activityMinutes').value) || 0;
       const fallbackWeight = Number((state.inbodyRecords || [])[0]?.weight) || 60;
-      const weight = Number($('activityWeight').value) || fallbackWeight;
+      const weight = fallbackWeight;
       $('activityCalories').value = round(met * 3.5 * weight / 200 * minutes);
     }
     function resetActivityForm() {
       $('activityType').value = 'cardio';
       $('activityMinutes').value = 30;
-      $('activityWeight').value = '';
       $('activityNote').value = '';
       renderActivityOptions();
     }
@@ -746,7 +741,6 @@
       currentListMode = mode;
       $('foodListModeBtn').classList.toggle('active', mode === 'food');
       $('activityListModeBtn').classList.toggle('active', mode === 'activity');
-      $('clearTodayBtn').textContent = mode === 'food' ? '清空所選日期餐點' : '清空所選日期運動';
       $('mealListTitle').textContent = `${dayLabel(selectedDate)} ${mode === 'food' ? '餐點' : '運動'}`;
       if (mode === 'food') renderMeals();
       else renderActivities();
@@ -848,14 +842,13 @@
     $('activityType').addEventListener('change', renderActivityOptions);
     $('activityName').addEventListener('change', calculateActivityCalories);
     $('activityMinutes').addEventListener('input', calculateActivityCalories);
-    $('activityWeight').addEventListener('input', calculateActivityCalories);
     $('resetActivityBtn').addEventListener('click', resetActivityForm);
     $('activityForm').addEventListener('submit', async e => {
       e.preventDefault();
       const calories = round($('activityCalories').value);
       const item = {
         id:`act_${idNow()}`, date:selectedDate, type:$('activityType').value, name:$('activityName').value,
-        minutes:Number($('activityMinutes').value) || 0, weight:Number($('activityWeight').value) || null,
+        minutes:Number($('activityMinutes').value) || 0, weight:Number((state.inbodyRecords || [])[0]?.weight) || null,
         calories, note:$('activityNote').value.trim()
       };
       if (!item.name || item.minutes <= 0 || calories <= 0) return;
@@ -964,7 +957,8 @@
       $('entryTitle').textContent = mode === 'meal' ? '新增餐點' : '新增運動';
       $('mealForm').classList.toggle('hidden', mode !== 'meal');
       $('activityForm').classList.toggle('hidden', mode !== 'activity');
-      $('activityNotice').classList.toggle('hidden', mode !== 'activity');
+      $('toggleAiPanelBtn').closest('.ai-panel').classList.toggle('hidden', mode !== 'meal');
+      $('templatePanel').parentElement.classList.toggle('hidden', mode !== 'meal');
       $('mealModeBtn').classList.toggle('active', mode === 'meal');
       $('activityModeBtn').classList.toggle('active', mode === 'activity');
     }
@@ -992,15 +986,6 @@
         calories:round($('targetCalories').value), protein:round($('targetProtein').value),
         carbs:round($('targetCarbs').value), fat:round($('targetFat').value)
       };
-      await saveCloud();
-      renderAll();
-    });
-
-    $('clearTodayBtn').addEventListener('click', async () => {
-      const isFood = currentListMode === 'food';
-      if (!confirm(`確定要清空 ${selectedDate} 的所有${isFood ? '餐點' : '運動'}？`)) return;
-      if (isFood) state.meals = state.meals.filter(m => m.date !== selectedDate);
-      else state.activities = (state.activities || []).filter(a => a.date !== selectedDate);
       await saveCloud();
       renderAll();
     });
