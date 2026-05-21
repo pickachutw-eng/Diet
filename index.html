@@ -210,7 +210,7 @@
                 <div class="title">基本資料</div>
                 <div class="form-row section-gap">
                   <div><label>性別</label><select id="profileGender"><option value="female">女性</option><option value="male">男性</option></select></div>
-                  <div><label>年齡</label><input type="number" id="profileAge" min="12" max="90" /></div>
+                  <div><label>生日</label><input type="date" id="profileBirthDate" /></div>
                 </div>
                 <div class="form-row">
                   <div><label>身高 cm</label><input type="number" id="profileHeight" min="120" max="230" /></div>
@@ -358,6 +358,18 @@
     const paceAdjustments = { fat_loss:{conservative:-0.1,standard:-0.15,aggressive:-0.2}, maintain:{conservative:0,standard:0,aggressive:0}, recomposition:{conservative:-0.03,standard:-0.06,aggressive:-0.1}, muscle_gain:{conservative:0.05,standard:0.08,aggressive:0.12} };
     const proteinFactor = { fat_loss:2.0, maintain:1.7, recomposition:2.1, muscle_gain:1.9 };
 
+
+    function calculateAgeFromBirthDate(birthDate, now = new Date()) {
+      if (!birthDate) return null;
+      const birth = new Date(`${birthDate}T00:00:00`);
+      if (Number.isNaN(birth.getTime())) return null;
+      let age = now.getFullYear() - birth.getFullYear();
+      const monthDiff = now.getMonth() - birth.getMonth();
+      const dayDiff = now.getDate() - birth.getDate();
+      if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) age -= 1;
+      return age >= 0 ? age : null;
+    }
+
     function calculateBmr(profile, inbody) {
       if (Number(inbody.bmr) > 0) return { value: round(inbody.bmr), source:'InBody BMR' };
       const w = Number(inbody.weight); const h = Number(profile.height); const a = Number(profile.age);
@@ -436,7 +448,7 @@
     }
     function renderMybody(){
       const p = state.profile || {};
-      $('profileGender').value = p.gender || 'female'; $('profileAge').value = p.age || ''; $('profileHeight').value = p.height || '';
+      $('profileGender').value = p.gender || 'female'; $('profileBirthDate').value = p.birthDate || ''; $('profileHeight').value = p.height || '';
       $('profileActivity').value = p.activity || 'light'; $('profileExerciseFreq').value = p.exerciseFreq ?? '';
       $('profileGoal').value = p.goal || 'fat_loss'; $('profilePace').value = p.pace || 'standard';
       const latest = (state.inbodyRecords||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0] || {};
@@ -784,15 +796,17 @@
     });
 
     function collectMybodyInput(){
+      const birthDate = $('profileBirthDate').value;
+      const calculatedAge = calculateAgeFromBirthDate(birthDate);
       return {
-        profile:{ gender:$('profileGender').value, age:Number($('profileAge').value), height:Number($('profileHeight').value), activity:$('profileActivity').value, exerciseFreq:Number($('profileExerciseFreq').value), goal:$('profileGoal').value, pace:$('profilePace').value },
+        profile:{ gender:$('profileGender').value, birthDate, age:calculatedAge, height:Number($('profileHeight').value), activity:$('profileActivity').value, exerciseFreq:Number($('profileExerciseFreq').value), goal:$('profileGoal').value, pace:$('profilePace').value },
         inbody:{ date:$('inbodyDate').value || todayISO(), weight:Number($('inbodyWeight').value), bodyFat:Number($('inbodyBodyFat').value), smm:Number($('inbodySmm').value), bmr:Number($('inbodyBmr').value), visceralFat:Number($('inbodyVisceralFat').value)||null, whr:Number($('inbodyWhr').value)||null }
       };
     }
 
     $('generateRecommendationBtn').addEventListener('click', async ()=>{
       const {profile,inbody} = collectMybodyInput();
-      if (!profile.age || !profile.height || !inbody.weight) { $('recommendationResult').textContent='請先填寫必要欄位：年齡、身高、體重。'; return; }
+      if (!profile.age || !profile.height || !inbody.weight) { $('recommendationResult').textContent='請先填寫必要欄位：生日、身高、體重。'; return; }
       const bmrInfo = calculateBmr(profile, inbody); const tdee = calculateTdee(bmrInfo.value, profile); const calories = calculateCaloriesTarget(tdee, profile); const macros = calculateMacros(inbody.weight, calories, profile);
       const rec = { id:`rec_${idNow()}`, createdAt:new Date().toISOString(), bmr:bmrInfo.value, bmrSource:bmrInfo.source, tdee, calories, ...macros, strategy:recommendationStrategy(profile) };
       state.profile = profile;
