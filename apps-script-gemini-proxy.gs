@@ -26,10 +26,11 @@ function doGet() {
 function doPost(e) {
   try {
     const body = parseRequestBody_(e);
-    if (body.mode !== 'nutrition_label_image' && (!body.text || typeof body.text !== 'string' || !body.text.trim())) {
+    const isNutritionLabelMode = body.mode === 'nutrition_label_image' || body.mode === 'nutrition_label' || (!!body.imageDataUrl && typeof body.imageDataUrl === 'string');
+    if (!isNutritionLabelMode && (!body.text || typeof body.text !== 'string' || !body.text.trim())) {
       return json_({ ok: false, error: '缺少餐點描述 text。' }, 400);
     }
-    if (body.mode === 'nutrition_label_image' && (!body.imageDataUrl || typeof body.imageDataUrl !== 'string')) {
+    if (isNutritionLabelMode && (!body.imageDataUrl || typeof body.imageDataUrl !== 'string')) {
       return json_({ ok: false, error: '缺少營養標示圖片 imageDataUrl。' }, 400);
     }
 
@@ -38,10 +39,10 @@ function doPost(e) {
       return json_({ ok: false, error: 'Apps Script 尚未設定 GEMINI_API_KEY。' }, 500);
     }
 
-    const estimate = body.mode === 'nutrition_label_image'
+    const estimate = isNutritionLabelMode
       ? parseNutritionLabelWithGemini_(apiKey, body)
       : callGemini_(apiKey, body);
-    const validationError = body.mode === 'nutrition_label_image'
+    const validationError = isNutritionLabelMode
       ? validateNutritionLabelEstimate_(estimate)
       : validateEstimate_(estimate);
     if (validationError) {
@@ -183,10 +184,13 @@ function parseDataUrl_(dataUrl) {
 
 function buildNutritionLabelPrompt_() {
   return [
-    '請辨識圖片中的商品營養成分表（Nutrition Facts 或營養標示）。',
-    '回傳每份（per serving）數值。若同時有每100公克與每份，優先每份。',
-    '只回傳 JSON，欄位固定為：name, calories, protein, carbs, fat。',
-    '單位：calories(kcal), protein/carbs/fat(g)。無法判讀時估算最合理值且不得為負數。'
+    '你是營養標示 OCR 與欄位轉換助手，不是餐點描述估算助手。',
+    '請只根據圖片中的商品營養成分表（Nutrition Facts / 營養標示）擷取數值。',
+    '若同時有每份與每100公克（或每100毫升），優先回傳每份（per serving）。',
+    '若標示為每100公克且沒有每份，則用每100公克數值回傳，並把 name 加註「（每100g）」；液體則用「（每100ml）」。',
+    '只回傳 JSON，欄位固定：name, calories, protein, carbs, fat。',
+    '單位：calories 使用 kcal；protein/carbs/fat 使用 g；數值必須為非負數。',
+    '看不清楚時請回傳最合理近似值，不可留空、不可輸出 markdown。'
   ].join('\n');
 }
 
