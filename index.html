@@ -210,8 +210,7 @@
                 <div class="title">基本資料</div>
                 <div class="form-row section-gap">
                   <div><label>性別</label><select id="profileGender"><option value="female">女性</option><option value="male">男性</option></select></div>
-                  <div><label>生日</label><input type="date" id="profileBirthDate" /></div>
-                  <div><label>年齡（自動計算）</label><input type="number" id="profileAgeDisplay" readonly /></div>
+                  <div><label>生日／年齡</label><input type="text" id="profileBirthDate" inputmode="none" placeholder="點擊選擇生日" readonly /></div>
                 </div>
                 <div class="form-row">
                   <div><label>身高 cm</label><input type="number" id="profileHeight" min="120" max="230" /></div>
@@ -371,6 +370,22 @@
       return age >= 0 ? age : null;
     }
 
+
+    function setBirthDateFieldDisplay(birthDate) {
+      const input = $('profileBirthDate');
+      const age = calculateAgeFromBirthDate(birthDate);
+      if (birthDate && age !== null) {
+        input.type = 'text';
+        input.value = `${age} 歲`;
+      } else {
+        input.type = 'text';
+        input.value = '';
+        input.placeholder = '點擊選擇生日';
+      }
+      input.dataset.birthDate = birthDate || '';
+      input.readOnly = true;
+    }
+
     function calculateBmr(profile, inbody) {
       if (Number(inbody.bmr) > 0) return { value: round(inbody.bmr), source:'InBody BMR' };
       const w = Number(inbody.weight); const h = Number(profile.height); const a = Number(profile.age);
@@ -449,9 +464,7 @@
     }
     function renderMybody(){
       const p = state.profile || {};
-      $('profileGender').value = p.gender || 'female'; $('profileBirthDate').value = p.birthDate || ''; $('profileHeight').value = p.height || '';
-      const ageFromBirthDate = calculateAgeFromBirthDate(p.birthDate);
-      $('profileAgeDisplay').value = ageFromBirthDate ?? (p.age || '');
+      $('profileGender').value = p.gender || 'female'; setBirthDateFieldDisplay(p.birthDate || ''); $('profileHeight').value = p.height || '';
       $('profileActivity').value = p.activity || 'light'; $('profileExerciseFreq').value = p.exerciseFreq ?? '';
       $('profileGoal').value = p.goal || 'fat_loss'; $('profilePace').value = p.pace || 'standard';
       const latest = (state.inbodyRecords||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0] || {};
@@ -798,13 +811,29 @@
       drawer.setAttribute('aria-hidden', isOpen ? 'true' : 'false');
     });
 
+    $('profileBirthDate').addEventListener('click', () => {
+      const input = $('profileBirthDate');
+      const birthDate = input.dataset.birthDate || '';
+      input.type = 'date';
+      input.readOnly = false;
+      input.value = birthDate;
+      if (typeof input.showPicker === 'function') input.showPicker();
+      else input.focus();
+    });
+
+    $('profileBirthDate').addEventListener('blur', () => {
+      const input = $('profileBirthDate');
+      const selected = input.value || input.dataset.birthDate || '';
+      setBirthDateFieldDisplay(selected);
+    });
+
     $('profileBirthDate').addEventListener('change', () => {
-      const age = calculateAgeFromBirthDate($('profileBirthDate').value);
-      $('profileAgeDisplay').value = age ?? '';
+      const input = $('profileBirthDate');
+      setBirthDateFieldDisplay(input.value || '');
     });
 
     function collectMybodyInput(){
-      const birthDate = $('profileBirthDate').value;
+      const birthDate = $('profileBirthDate').dataset.birthDate || '';
       const calculatedAge = calculateAgeFromBirthDate(birthDate);
       return {
         profile:{ gender:$('profileGender').value, birthDate, age:calculatedAge, height:Number($('profileHeight').value), activity:$('profileActivity').value, exerciseFreq:Number($('profileExerciseFreq').value), goal:$('profileGoal').value, pace:$('profilePace').value },
