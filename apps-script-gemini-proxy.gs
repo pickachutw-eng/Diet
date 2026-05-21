@@ -12,6 +12,7 @@ const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const CONFIDENCE_VALUES = ['high', 'medium', 'low'];
 const REQUIRED_FIELDS = ['name', 'calories', 'protein', 'carbs', 'fat', 'confidence', 'servingDescription', 'reason', 'warnings'];
+const NUTRITION_LABEL_REQUIRED_FIELDS = ['name', 'calories', 'protein', 'carbs', 'fat'];
 
 
 function doGet() {
@@ -25,8 +26,12 @@ function doGet() {
 function doPost(e) {
   try {
     const body = parseRequestBody_(e);
-    if (!body.text || typeof body.text !== 'string' || !body.text.trim()) {
+    const isNutritionLabelMode = body.mode === 'nutrition_label_image' || body.mode === 'nutrition_label' || (!!body.imageDataUrl && typeof body.imageDataUrl === 'string');
+    if (!isNutritionLabelMode && (!body.text || typeof body.text !== 'string' || !body.text.trim())) {
       return json_({ ok: false, error: '缺少餐點描述 text。' }, 400);
+    }
+    if (isNutritionLabelMode && (!body.imageDataUrl || typeof body.imageDataUrl !== 'string')) {
+      return json_({ ok: false, error: '缺少營養標示圖片 imageDataUrl。' }, 400);
     }
 
     const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
@@ -34,8 +39,12 @@ function doPost(e) {
       return json_({ ok: false, error: 'Apps Script 尚未設定 GEMINI_API_KEY。' }, 500);
     }
 
-    const estimate = callGemini_(apiKey, body);
-    const validationError = validateEstimate_(estimate);
+    const estimate = isNutritionLabelMode
+      ? parseNutritionLabelWithGemini_(apiKey, body)
+      : callGemini_(apiKey, body);
+    const validationError = isNutritionLabelMode
+      ? validateNutritionLabelEstimate_(estimate)
+      : validateEstimate_(estimate);
     if (validationError) {
       return json_({ ok: false, error: validationError }, 502);
     }
@@ -116,6 +125,87 @@ function callGemini_(apiKey, body) {
   } catch (err) {
     throw new Error('Gemini 回傳內容不是有效 JSON。');
   }
+}
+
+
+function parseNutritionLabelWithGemini_(apiKey, body) {
+  const parsed = parseDataUrl_(body.imageDataUrl);
+  const payload = {
+    contents: [{
+      role: 'user',
+      parts: [
+        { text: buildNutritionLabelPrompt_() },
+        {
+          inlineData: {
+            mimeType: parsed.mimeType,
+            data: parsed.base64
+          }
+        }
+      ]
+    }],
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          calories: { type: 'number' },
+          protein: { type: 'number' },
+          carbs: { type: 'number' },
+          fat: { type: 'number' }
+        },
+        required: NUTRITION_LABEL_REQUIRED_FIELDS
+      }
+    }
+  };
+
+  const response = UrlFetchApp.fetch(GEMINI_ENDPOINT, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'x-goog-api-key': apiKey },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  const status = response.getResponseCode();
+  const text = response.getContentText();
+  if (status < 200 || status >= 300) throw new Error(`Gemini API 呼叫失敗（HTTP ${status}）：${text.slice(0, 300)}`);
+  const data = JSON.parse(text);
+  const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!candidateText) throw new Error('Gemini API 未回傳可解析的文字結果。');
+  return JSON.parse(candidateText);
+}
+
+function parseDataUrl_(dataUrl) {
+  const match = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) throw new Error('imageDataUrl 格式錯誤，必須是 base64 Data URL。');
+  return { mimeType: match[1], base64: match[2] };
+}
+
+function buildNutritionLabelPrompt_() {
+  return [
+    '你是繁體中文營養標示 OCR 助手，專門處理台灣包裝食品照片。',
+    '圖片可能傾斜、反光、模糊或字很小；請優先找出「每份」與「本包裝含幾份」附近的營養表格。',
+    '只回傳每份數值：calories/protein/carbs/fat。不要回傳每100g或每100ml欄。',
+    '若同時有「每份」與「每100公克(毫升)」，只能採用每份。',
+    '若每份欄位看不清楚，請用同表可讀數字推估最合理的每份值，仍要輸出數字。',
+    'name 請回傳產品名稱；讀不到時可用簡短名稱例如「營養標示商品」。',
+    '只回傳 JSON，欄位固定：name, calories, protein, carbs, fat。',
+    '單位：calories=kcal；protein/carbs/fat=g；所有數值必須是非負數。',
+    '禁止輸出 markdown、註解或任何額外文字。'
+  ].join('\n');
+}
+
+function validateNutritionLabelEstimate_(estimate) {
+  if (!estimate || typeof estimate !== 'object' || Array.isArray(estimate)) return 'Gemini 回傳不是 JSON object。';
+  for (const field of NUTRITION_LABEL_REQUIRED_FIELDS) {
+    if (!(field in estimate)) return `Gemini 回傳缺少欄位：${field}。`;
+  }
+  for (const field of ['calories', 'protein', 'carbs', 'fat']) {
+    if (typeof estimate[field] !== 'number' || !isFinite(estimate[field]) || estimate[field] < 0) return `${field} 必須是非負數。`;
+  }
+  if (typeof estimate.name !== 'string') return 'name 必須是字串。';
+  return '';
 }
 
 function buildSystemPrompt_() {
