@@ -829,9 +829,10 @@
       setBirthDateFieldDisplay(selected);
     });
 
-    $('profileBirthDate').addEventListener('change', () => {
+    $('profileBirthDate').addEventListener('change', async () => {
       const input = $('profileBirthDate');
       setBirthDateFieldDisplay(input.value || '');
+      await persistMybodyDraft();
     });
 
     function collectMybodyInput(){
@@ -842,6 +843,24 @@
         inbody:{ date:$('inbodyDate').value || todayISO(), weight:Number($('inbodyWeight').value), bodyFat:Number($('inbodyBodyFat').value), smm:Number($('inbodySmm').value), bmr:Number($('inbodyBmr').value), visceralFat:Number($('inbodyVisceralFat').value)||null, whr:Number($('inbodyWhr').value)||null }
       };
     }
+
+
+    async function persistMybodyDraft() {
+      const { profile, inbody } = collectMybodyInput();
+      state.profile = profile;
+      const records = Array.isArray(state.inbodyRecords) ? [...state.inbodyRecords] : [];
+      const idx = records.findIndex(x => x && x.date === inbody.date);
+      if (idx >= 0) records[idx] = { ...records[idx], ...inbody };
+      else records.unshift(inbody);
+      state.inbodyRecords = records.slice(0, 20);
+      await saveCloud();
+      renderMybody();
+    }
+
+
+    ['profileGender','profileHeight','profileActivity','profileExerciseFreq','profileGoal','profilePace','inbodyDate','inbodyWeight','inbodyBodyFat','inbodySmm','inbodyBmr','inbodyVisceralFat','inbodyWhr'].forEach(id => {
+      $(id).addEventListener('change', persistMybodyDraft);
+    });
 
     $('generateRecommendationBtn').addEventListener('click', async ()=>{
       const {profile,inbody} = collectMybodyInput();
