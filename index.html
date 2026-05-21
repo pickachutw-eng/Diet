@@ -173,7 +173,7 @@
               </div>
               <div id="aiInputPanel" class="section-gap hidden">
                 <div><label>餐點描述</label><textarea id="aiMealText" placeholder="例如：雞腿便當飯半碗、炸皮沒吃，配無糖茶；或：超商雞胸沙拉加一顆茶葉蛋"></textarea></div>
-                <div class="actions"><button type="button" id="estimateAiBtn">AI 估算</button><button type="button" class="ghost" id="clearAiBtn">清空</button></div>
+                <div class="actions"><button type="button" id="estimateAiBtn">AI 估算</button><button type="button" class="secondary" id="uploadNutritionBtn" aria-label="上傳營養成分表快照">＋</button><input id="nutritionImageInput" type="file" accept="image/*" class="hidden" /><button type="button" class="ghost" id="clearAiBtn">清空</button></div>
                 <div id="aiResult" class="ai-result"></div>
               </div>
             </div>
@@ -661,6 +661,70 @@
       ].filter(Boolean).join('\n');
     }
 
+
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('讀取圖片失敗，請重新上傳。'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function parseNutritionLabelImage() {
+      if (!APPS_SCRIPT_WEB_APP_URL) {
+        setAiResult('尚未設定 Apps Script Web App URL。', 'error');
+        return;
+      }
+      if (!currentUser) {
+        setAiResult('請先登入 Google 帳號。', 'error');
+        return;
+      }
+      const input = $('nutritionImageInput');
+      const file = input.files && input.files[0];
+      if (!file) return;
+
+      const btn = $('uploadNutritionBtn');
+      btn.disabled = true;
+      btn.textContent = '辨識中…';
+      clearAiResult();
+
+      try {
+        const imageDataUrl = await fileToDataUrl(file);
+        const idToken = await currentUser.getIdToken();
+        const response = await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            idToken,
+            mode: 'nutrition_label_image',
+            imageDataUrl
+          })
+        });
+        const raw = await response.text();
+        let data;
+        try { data = JSON.parse(raw); } catch (_) {
+          throw new Error(`Apps Script 回傳非 JSON 內容（HTTP ${response.status}）。`);
+        }
+        if (!response.ok || data.ok === false) throw new Error(data.error || `Apps Script 回傳錯誤（HTTP ${response.status}）`);
+
+        const result = data.result || {};
+        $('calories').value = round(result.calories || 0);
+        $('protein').value = round(result.protein || 0);
+        $('carbs').value = round(result.carbs || 0);
+        $('fat').value = round(result.fat || 0);
+        if (!$('mealName').value.trim()) $('mealName').value = result.name || '營養標示辨識餐點';
+        $('source').value = '手動輸入';
+        setAiResult(`<strong>已從營養成分表帶入欄位</strong><br>${round(result.calories || 0)} kcal｜P ${round(result.protein || 0)}g／C ${round(result.carbs || 0)}g／F ${round(result.fat || 0)}g`);
+      } catch (err) {
+        setAiResult(`營養標示辨識失敗：${esc(err && err.message ? err.message : err)}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '＋';
+        input.value = '';
+      }
+    }
     async function estimateMealWithAi() {
       const text = $('aiMealText').value.trim();
       if (!text) {
@@ -882,6 +946,8 @@
     });
 
     $('estimateAiBtn').addEventListener('click', estimateMealWithAi);
+    $('uploadNutritionBtn').addEventListener('click', () => $('nutritionImageInput').click());
+    $('nutritionImageInput').addEventListener('change', parseNutritionLabelImage);
 
     $('clearAiBtn').addEventListener('click', () => {
       $('aiMealText').value = '';
