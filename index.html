@@ -87,7 +87,8 @@
     .recommend-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:13px}
     .recommend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     .strategy{font-size:13px;color:var(--muted);line-height:1.6}
-    .ai-title-row{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;white-space:nowrap}
+    .ai-title-row{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;min-width:0}
+    .ai-title-row .title{white-space:nowrap;margin-bottom:0}
     @media(max-width:880px){.grid,.summary-grid,.remaining,.form-row,.recommend-grid{grid-template-columns:1fr}header{flex-direction:column}.top-actions{justify-content:flex-start}.date-picker{border-radius:18px;align-items:flex-start;flex-direction:column}.date-picker input{width:100%}}
   </style>
 </head>
@@ -170,7 +171,6 @@
                   <button type="button" class="secondary" id="uploadNutritionBtn" aria-label="上傳營養成分表快照">＋</button>
                   <div>
                     <div class="title">AI 餐點估算</div>
-                    <div class="meta">透過 Google Apps Script 代理 Gemini API；估算結果只會帶入下方欄位，不會自動寫入 Firebase。</div>
                   </div>
                 </div>
                 <button type="button" class="collapse-toggle" id="toggleAiPanelBtn" aria-expanded="false" aria-controls="aiInputPanel" aria-label="展開 AI 估算">▸</button>
